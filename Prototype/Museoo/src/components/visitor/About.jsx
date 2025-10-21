@@ -29,9 +29,9 @@ const About = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
               </div>
-              <h3 className="text-sm sm:text-base font-bold text-gray-800">Our Vision</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800">Our Vision</h3>
             </div>
-            <p className="text-xs sm:text-sm text-gray-600 leading-tight">
+            <p className="text-xs sm:text-sm md:text-base text-gray-600 leading-relaxed">
               To be the premier cultural institution in Northern Mindanao, preserving and showcasing the rich heritage of Cagayan de Oro while inspiring future generations through education and cultural appreciation.
             </p>
           </div>
@@ -44,9 +44,9 @@ const About = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-sm sm:text-base font-bold text-gray-800">Our Mission</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800">Our Mission</h3>
             </div>
-            <p className="text-xs sm:text-sm text-gray-600 leading-tight">
+            <p className="text-xs sm:text-sm md:text-base text-gray-600 leading-relaxed">
               To collect, preserve, and exhibit historical artifacts and cultural materials that tell the story of Cagayan de Oro, fostering community engagement and promoting cultural understanding.
             </p>
           </div>
