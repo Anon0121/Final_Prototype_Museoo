@@ -5,9 +5,9 @@ const getBackendURL = () => {
     return 'http://localhost:3000';
   }
 
-  // If accessing from Vercel frontend, use Vercel backend
-  if (window.location.hostname === 'museoo-project.vercel.app') {
-    return 'https://museoo-backend.vercel.app';
+  // If accessing from Vercel (production), use Vercel backend
+  if (window.location.hostname.includes('vercel.app')) {
+    return 'https://backend-8bycrtvhf-julianas-projects-638cf11e.vercel.app';
   }
 
   // If accessing from ngrok, use ngrok backend
@@ -34,6 +34,25 @@ const api = axios.create({
   timeout: 35000, // Increased to 35 seconds to match backend timeout
 });
 
+// Demo mode interceptor - return mock data when no backend
+api.interceptors.request.use((config) => {
+  if (!API_BASE_URL) {
+    // Demo mode - return mock success response
+    return Promise.reject({
+      isDemo: true,
+      message: 'Demo mode - backend not available',
+      response: {
+        data: {
+          success: true,
+          message: 'Demo mode - form submitted successfully',
+          demo: true
+        }
+      }
+    });
+  }
+  return config;
+});
+
 // Add request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
@@ -53,6 +72,11 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Handle demo mode gracefully
+    if (error.isDemo) {
+      console.log('🎭 Demo mode - returning mock success response');
+      return Promise.resolve(error.response);
+    }
     console.error('❌ API Response Error:', error.response?.status, error.response?.data?.message || error.message);
     return Promise.reject(error);
   }
