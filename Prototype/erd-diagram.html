@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Museum Management System - Entity Relationship Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .legend {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .legend h3 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        .legend ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .legend li {
+            margin: 8px 0;
+            padding: 5px 0;
+        }
+        .legend .entity {
+            font-weight: bold;
+            color: #495057;
+        }
+        .legend .relationship {
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ Museum Management System</h1>
+        <h2 style="text-align: center; color: #495057;">Entity Relationship Diagram (ERD)</h2>
+        
+        <div class="description">
+            This diagram shows the complete database schema for the Museum Management System, 
+            including all tables, their relationships, and key attributes. The system manages 
+            visitors, cultural objects, events, donations, and administrative functions.
+        </div>
+
+        <div class="mermaid">
+erDiagram
+    %% Core User Management Relationships
+    SYSTEM_USER ||--o{ USER_PERMISSIONS : "has"
+    SYSTEM_USER ||--o{ USER_ACTIVITY_LOGS : "generates"
+    SYSTEM_USER ||--o{ REPORTS : "creates"
+    SYSTEM_USER ||--o{ VISITORS : "checks_in"
+    SYSTEM_USER ||--o{ ARCHIVES : "uploads"
+    
+    %% Visitor Management Relationships
+    BOOKINGS ||--o{ VISITORS : "has"
+    BOOKINGS ||--o{ ADDITIONAL_VISITORS : "has"
+    VISITORS ||--o{ ADDITIONAL_VISITORS : "related_to"
+    
+    %% Activity Management Relationships
+    ACTIVITIES ||--o{ EVENT_DETAILS : "has"
+    ACTIVITIES ||--o{ IMAGES : "has"
+    EVENT_DETAILS ||--o{ EVENT_REGISTRATIONS : "receives"
+    EVENT_DETAILS ||--o{ IMAGES : "has"
+    
+    %% Cultural Objects Management Relationships
+    CULTURAL_OBJECTS ||--o{ OBJECT_DETAILS : "has"
+    CULTURAL_OBJECTS ||--o{ IMAGES : "has"
+    CULTURAL_OBJECTS ||--o{ DONATIONS : "received_from"
+    
+    %% Donations Management Relationships
+    DONATIONS ||--o{ DONATION_DETAILS : "has"
+    DONATIONS ||--o{ CULTURAL_OBJECTS : "creates"
+    
+    %% Cross-Entity Relationships
+    VISITORS ||--o{ EVENT_REGISTRATIONS : "registers_for"
+    VISITORS ||--o{ DONATIONS : "makes"
+    ACTIVITIES ||--o{ ARCHIVES : "documented_in"
+    CULTURAL_OBJECTS ||--o{ ARCHIVES : "archived_in"
+    
+    %% Media Relationships
+    IMAGES ||--o{ ACTIVITIES : "belongs_to"
+    IMAGES ||--o{ CULTURAL_OBJECTS : "belongs_to"
+    IMAGES ||--o{ ARCHIVES : "stored_in"
+    
+    %% Reports Relationships
+    REPORTS ||--o{ VISITORS : "analyzes"
+    REPORTS ||--o{ ACTIVITIES : "analyzes"
+    REPORTS ||--o{ DONATIONS : "analyzes"
+    REPORTS ||--o{ CULTURAL_OBJECTS : "analyzes"
+    
+    SYSTEM_USER {
+        int user_ID PK
+        varchar username
+        varchar firstname
+        varchar lastname
+        varchar email
+        varchar password
+        varchar role
+        varchar status
+        timestamp created_at
+    }
+    
+    USER_PERMISSIONS {
+        int permission_id PK
+        int user_id FK
+        varchar permission_name
+        int is_allowed
+        varchar access_level
+        timestamp created_at
+    }
+    
+    USER_ACTIVITY_LOGS {
+        int id PK
+        int user_id FK
+        varchar action
+        text details
+        varchar ip_address
+        timestamp created_at
+    }
+    
+    BOOKINGS {
+        int booking_id PK
+        varchar booking_type
+        date visit_date
+        varchar time_slot
+        int total_visitors
+        varchar status
+        timestamp created_at
+    }
+    
+    VISITORS {
+        int visitor_id PK
+        int booking_id FK
+        varchar first_name
+        varchar last_name
+        varchar gender
+        text address
+        varchar email
+        varchar nationality
+        varchar visitor_type
+        varchar purpose
+        varchar institution
+        varchar status
+        int is_main_visitor
+        int details_complete
+        timestamp created_at
+        varchar backup_code
+        text qr_code
+        varchar checkin_status
+        datetime checkin_time
+        varchar visitor_code
+        int qr_code_sent
+        int checked_in_by FK
+    }
+    
+    ADDITIONAL_VISITORS {
+        varchar token_id PK
+        int booking_id FK
+        varchar email
+        varchar status
+        text details
+        timestamp qr_generated_at
+        timestamp details_completed_at
+        timestamp link_expires_at
+        timestamp checkin_time
+        timestamp created_at
+    }
+    
+    ACTIVITIES {
+        int id PK
+        varchar title
+        text description
+        varchar type
+        timestamp created_at
+    }
+    
+    EVENT_DETAILS {
+        int id PK
+        int activity_id FK
+        date start_date
+        time time
+        varchar location
+        varchar organizer
+        int max_capacity
+        int current_registrations
+    }
+    
+    EVENT_REGISTRATIONS {
+        int id PK
+        int event_id FK
+        varchar full_name
+        varchar email
+        varchar contact_number
+        varchar institution
+        timestamp registration_date
+        varchar status
+        varchar qr_code
+        timestamp checkin_time
+    }
+    
+    CULTURAL_OBJECTS {
+        int id PK
+        varchar name
+        varchar category
+        text description
+        timestamp created_at
+    }
+    
+    OBJECT_DETAILS {
+        int id PK
+        int cultural_object_id FK
+        varchar period
+        varchar origin
+        varchar material
+        varchar dimensions
+        varchar condition_status
+        date acquisition_date
+        varchar acquisition_method
+        varchar current_location
+        decimal estimated_value
+        text conservation_notes
+        text exhibition_history
+        timestamp updated_at
+    }
+    
+    DONATIONS {
+        int id PK
+        varchar donor_name
+        varchar donor_email
+        varchar donor_contact
+        varchar type
+        date date_received
+        text notes
+        varchar status
+        timestamp created_at
+    }
+    
+    DONATION_DETAILS {
+        int id PK
+        int donation_id FK
+        decimal amount
+        varchar method
+        text item_description
+        decimal estimated_value
+        varchar condition
+        date loan_start_date
+        date loan_end_date
+    }
+    
+    IMAGES {
+        int id PK
+        int activity_id FK
+        int cultural_object_id FK
+        varchar url
+        timestamp created_at
+    }
+    
+    REPORTS {
+        int id PK
+        int user_id FK
+        varchar title
+        text description
+        varchar report_type
+        date start_date
+        date end_date
+        text content
+        text data
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    ARCHIVES {
+        int id PK
+        varchar title
+        text description
+        date date
+        varchar type
+        varchar tags
+        varchar file_url
+        varchar uploaded_by
+        timestamp created_at
+    }
+
+
+
+
+
+
+
+
+
+
+        </div>
+
+        <div class="legend">
+            <h3>📋 Database Schema Overview</h3>
+            <ul>
+                <li><span class="entity">User Management:</span> <span class="relationship">SYSTEM_USER, USER_PERMISSIONS, USER_ACTIVITY_LOGS</span></li>
+                <li><span class="entity">Visitor Management:</span> <span class="relationship">VISITORS, ADDITIONAL_VISITORS, BOOKINGS</span></li>
+                <li><span class="entity">Activity Management:</span> <span class="relationship">ACTIVITIES, EVENT_DETAILS, EVENT_REGISTRATIONS</span></li>
+                <li><span class="entity">Cultural Objects:</span> <span class="relationship">CULTURAL_OBJECTS, OBJECT_DETAILS</span></li>
+                <li><span class="entity">Donations:</span> <span class="relationship">DONATIONS, DONATION_DETAILS</span></li>
+                <li><span class="entity">Archives:</span> <span class="relationship">ARCHIVES</span></li>
+                <li><span class="entity">Media:</span> <span class="relationship">IMAGES</span></li>
+                <li><span class="entity">Reports:</span> <span class="relationship">REPORTS</span></li>
+            </ul>
+            
+            <h3>🔗 Key Relationships</h3>
+            <ul>
+                <li><strong>One-to-Many:</strong> A booking can have multiple visitors</li>
+                <li><strong>One-to-Many:</strong> An activity can have multiple event details</li>
+                <li><strong>One-to-Many:</strong> A cultural object can have multiple detailed attributes</li>
+                <li><strong>One-to-Many:</strong> A donation can have multiple detail records</li>
+                <li><strong>Many-to-Many:</strong> Activities and cultural objects can have multiple images</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            er: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+    </script>
+</body>
+</html>

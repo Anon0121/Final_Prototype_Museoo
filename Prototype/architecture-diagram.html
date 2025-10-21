@@ -1,0 +1,169 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Museoo System Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: white;
+        }
+        .mermaid {
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Museoo Museum Management System - Architecture Diagram</h1>
+    <div class="mermaid">
+flowchart TD
+    %% Tier 1: Presentation Layer
+    subgraph "Tier 1: Presentation Layer"
+        subgraph "User Roles"
+            visitor["👤 Visitor"]
+            donor["👤 Donor"]
+            staff["👤 Staff"]
+            admin["⚙️ Admin"]
+        end
+        
+        subgraph "Frontend Application"
+            react["⚛️ React.js Frontend<br/>(Vite + TailwindCSS)"]
+            
+            subgraph "Frontend Components"
+                visitor_components["📱 Visitor Components<br/>(About, Exhibits, Events,<br/>Schedule Visit, Donations,<br/>Digital Archive)"]
+                admin_components["🛠️ Admin Components<br/>(Dashboard, Reports,<br/>Cultural Objects, Visitors,<br/>QR Scanner, Settings)"]
+                auth_components["🔐 Auth Components<br/>(Login, Signup)"]
+                common_components["🔧 Common Components<br/>(Header, Footer, Search)"]
+            end
+        end
+    end
+
+    %% Tier 2: Business Logic Layer
+    subgraph "Tier 2: Business Logic Layer"
+        subgraph "Backend Application"
+            nodejs["🟢 Node.js Backend<br/>(Express.js)"]
+            
+            subgraph "Backend Services"
+                auth_service["🔐 Authentication Service<br/>(JWT, Sessions, Permissions)"]
+                ai_service["🤖 AI Service<br/>(OpenAI Integration,<br/>Report Generation)"]
+                email_service["📧 Email Service<br/>(Nodemailer)"]
+                qr_service["📱 QR Service<br/>(QR Code Generation)"]
+                pdf_service["📄 PDF Service<br/>(PDF Generation, Reports)"]
+                file_service["📁 File Service<br/>(Multer, Image Uploads)"]
+            end
+            
+            subgraph "API Routes"
+                auth_routes["🔐 Auth Routes<br/>(Login, Signup, Permissions)"]
+                visitor_routes["👥 Visitor Routes<br/>(Bookings, Activities)"]
+                admin_routes["🛠️ Admin Routes<br/>(Reports, Stats, Archive)"]
+                cultural_routes["🏛️ Cultural Objects<br/>(Inventory Management)"]
+                donation_routes["💰 Donation Routes<br/>(Payment Processing)"]
+                slot_routes["📅 Slot Routes<br/>(Scheduling System)"]
+            end
+        end
+        
+        subgraph "External Integrations"
+            openai_api["🤖 OpenAI API<br/>(AI Reports)"]
+            email_provider["📧 Email Provider<br/>(SMTP)"]
+            analytics["📈 Analytics<br/>(Google Analytics)"]
+        end
+    end
+
+    %% Tier 3: Data Layer
+    subgraph "Tier 3: Data Layer"
+        subgraph "Database"
+            mysql["🗄️ MySQL Database"]
+            
+            subgraph "Database Tables"
+                users_table["👥 Users<br/>(system_user)"]
+                bookings_table["📅 Bookings<br/>(visitor_slots)"]
+                cultural_table["🏛️ Cultural Objects<br/>(cultural_objects)"]
+                donations_table["💰 Donations<br/>(donations)"]
+            end
+        end
+        
+        subgraph "File Storage"
+            uploads["📁 Uploads Directory<br/>(Images, Media)"]
+            profiles["👤 Profile Photos<br/>(User Avatars)"]
+        end
+    end
+
+    %% Connections - User Roles to Frontend
+    visitor --> react
+    donor --> react
+    staff --> react
+    admin --> react
+
+    %% Frontend Internal Connections
+    react --> visitor_components
+    react --> admin_components
+    react --> auth_components
+    react --> common_components
+
+    %% Tier 1 to Tier 2
+    react --> nodejs
+
+    %% Tier 2 Internal Connections
+    nodejs --> auth_service
+    nodejs --> ai_service
+    nodejs --> email_service
+    nodejs --> qr_service
+    nodejs --> pdf_service
+    nodejs --> file_service
+
+    nodejs --> auth_routes
+    nodejs --> visitor_routes
+    nodejs --> admin_routes
+    nodejs --> cultural_routes
+    nodejs --> donation_routes
+    nodejs --> slot_routes
+
+    %% Tier 2 to External Services
+    ai_service --> openai_api
+    email_service --> email_provider
+    nodejs --> analytics
+
+    %% Tier 2 to Tier 3
+    nodejs --> mysql
+    nodejs --> uploads
+    nodejs --> profiles
+
+    %% Database Connections
+    mysql --> users_table
+    mysql --> bookings_table
+    mysql --> cultural_table
+    mysql --> donations_table
+
+    %% Styling
+    classDef tier1 fill:#e3f2fd,stroke:#1565c0,stroke-width:3px
+    classDef tier2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
+    classDef tier3 fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
+
+    class visitor,donor,staff,admin,react,visitor_components,admin_components,auth_components,common_components tier1
+    class nodejs,auth_service,ai_service,email_service,qr_service,pdf_service,file_service,auth_routes,visitor_routes,admin_routes,cultural_routes,donation_routes,slot_routes,openai_api,email_provider,analytics tier2
+    class mysql,users_table,bookings_table,cultural_table,donations_table,uploads,profiles tier3
+
+
+
+    </div>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
