@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScanType } from "html5-qrcode";
 import api, { API_BASE_URL } from "../../config/api";
 
 const VisitorScanner = () => {
@@ -16,6 +16,7 @@ const VisitorScanner = () => {
   const [showManualInput, setShowManualInput] = useState(false); // "qr" or "backup"
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [checkInType, setCheckInType] = useState('visitor'); // 'visitor', 'event'
+  const [incompleteFormError, setIncompleteFormError] = useState(null); // Track incomplete form errors
 
 
   const scannerRef = useRef(null);
@@ -24,8 +25,7 @@ const VisitorScanner = () => {
   // Check if we're on HTTPS (required for camera access on mobile)
   const isSecure = window.location.protocol === 'https:' || 
                    window.location.hostname === 'localhost' || 
-                   window.location.hostname === '127.0.0.1' ||
-                   window.location.hostname.includes('192.168.');
+                   window.location.hostname === '127.0.0.1';
 
   const checkCameraPermission = async () => {
     try {
@@ -129,8 +129,11 @@ const VisitorScanner = () => {
         cameraId,
         {
           fps: 10,
-          qrbox: { width: 350, height: 350 },
+          qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
         },
         async (decodedText) => {
           console.log("QR Code detected:", decodedText);
@@ -170,8 +173,12 @@ const VisitorScanner = () => {
         setCameraError("No camera detected. Please use manual input as backup.");
       } else if (err.message.includes("Permission")) {
         setCameraError("Camera permission denied. Please use manual input as backup.");
+      } else if (err.message.includes("load failed") || err.message.includes("NotAllowedError")) {
+        setCameraError("Camera access failed. Please check browser permissions and try manual input.");
+        setShowManualInput(true);
       } else {
         setCameraError("Camera initialization failed. Please use manual input as backup.");
+        setShowManualInput(true);
       }
       
       // Clean up any partial initialization
@@ -187,40 +194,30 @@ const VisitorScanner = () => {
 
   const processQRCode = async (decodedText) => {
     try {
-      console.log("🔍 === QR SCANNER DEBUG START ===");
-      console.log("📱 Processing QR code:", decodedText);
-      console.log("🌐 API Base URL:", API_BASE_URL);
-      console.log("📍 Current Location:", window.location.href);
-      console.log("📅 Timestamp:", new Date().toISOString());
-      
+      setIncompleteFormError(null); // Clear incomplete form error when processing new QR code
       // Check if it's a URL (primary visitor) or JSON (group member/event participant)
       if (decodedText.includes("/api/visit/checkin/")) {
-        console.log("🎯 Detected: Primary Visitor QR Code (URL format)");
-        console.log("📋 URL:", decodedText);
-        
         const res = await fetch(decodedText);
-        console.log("📡 API Response Status:", res.status);
-        console.log("📡 API Response OK:", res.ok);
-        
-        if (!res.ok) {
-          console.error("❌ HTTP Error:", res.status, res.statusText);
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        
         const json = await res.json();
-        console.log("📋 API Response Data:", json);
-        
+
         if (json.success) {
-          console.log("✅ Primary Visitor Visit Success!");
           setVisitor(json.visitor);
           setError("");
+          setIncompleteFormError(null);
         } else {
-          console.error("❌ Primary Visitor Check-in Failed:", json.error);
           // Handle specific error cases
           if (json.status === 'cancelled') {
             setError("This booking has been cancelled and cannot be checked in.");
           } else if (json.status === 'checked-in') {
             setError("This visitor has already visited.");
+          } else if (json.status === 'incomplete' || json.status === 'form-incomplete') {
+            // Handle incomplete form error from QR code scan
+            setIncompleteFormError({
+              message: json.message || json.error || "Please complete your visitor information first.",
+              missingFields: json.missingFields || [],
+              email: json.email
+            });
+            setError("");
           } else {
             setError(json.error || "Visit failed");
           }
@@ -369,9 +366,20 @@ const VisitorScanner = () => {
                   displayType: 'Group Walk-in Leader'
                 });
                 setError("");
+                setIncompleteFormError(null);
               } else {
                 console.error("❌ Group Walk-in Leader Check-in Failed:", json.error);
-                setError(json.error || "Failed to process group walk-in leader QR code");
+                // Check if this is an incomplete form error
+                if (json.status === 'incomplete' || json.status === 'form-incomplete') {
+                  setIncompleteFormError({
+                    message: json.message || json.error || "Please complete your visitor information first.",
+                    missingFields: json.missingFields || [],
+                    email: json.email
+                  });
+                  setError("");
+                } else {
+                  setError(json.error || "Failed to process group walk-in leader QR code");
+                }
               }
             } else if (qrData.visitorId && typeof qrData.visitorId === 'string' && qrData.visitorId.startsWith('GROUP-')) {
               console.log("🎯 Processing as Group Walk-in Member");
@@ -433,9 +441,20 @@ const VisitorScanner = () => {
                   displayType: 'Walk-in Visitor'
                 });
                 setError("");
+                setIncompleteFormError(null);
               } else {
                 console.error("❌ Individual Walk-in Visitor Check-in Failed:", json.error);
-                setError(json.error || "Failed to process individual walk-in visitor QR code");
+                // Check if this is an incomplete form error
+                if (json.status === 'incomplete' || json.status === 'form-incomplete') {
+                  setIncompleteFormError({
+                    message: json.message || json.error || "Please complete your visitor information first.",
+                    missingFields: json.missingFields || [],
+                    email: json.email
+                  });
+                  setError("");
+                } else {
+                  setError(json.error || "Failed to process individual walk-in visitor QR code");
+                }
               }
             }
           } else if (qrData.type === 'primary_visitor') {
@@ -460,9 +479,20 @@ const VisitorScanner = () => {
               console.log("✅ Legacy Primary Visitor Visit Success!");
               setVisitor(json.visitor);
               setError("");
+              setIncompleteFormError(null);
             } else {
               console.error("❌ Legacy Primary Visitor Check-in Failed:", json.error);
-              setError(json.error || "Failed to process primary visitor QR code");
+              // Check if this is an incomplete form error
+              if (json.status === 'incomplete' || json.status === 'form-incomplete') {
+                setIncompleteFormError({
+                  message: json.message || json.error || "Please complete your visitor information first.",
+                  missingFields: json.missingFields || [],
+                  email: json.email
+                });
+                setError("");
+              } else {
+                setError(json.error || "Failed to process primary visitor QR code");
+              }
             }
           } else {
             console.error("❌ Invalid QR code type:", qrData.type);
@@ -514,6 +544,7 @@ const VisitorScanner = () => {
 
     try {
       setError("");
+      setIncompleteFormError(null); // Clear incomplete form error
       setScanned("");
       setVisitor(null);
       setIsCheckingIn(true);
@@ -566,13 +597,38 @@ const VisitorScanner = () => {
         
         const visitorJson = await visitorResponse.json();
         
+        console.log("📋 Backup Code Validation Response:", visitorJson);
+        
         if (visitorJson.success) {
           console.log("✅ Visitor ID validated successfully");
           setVisitor(visitorJson.visitor);
           setError("");
+          setIncompleteFormError(null); // Clear incomplete form error
           setScanned(`Visitor ID: ${backupCode}`);
         } else {
-          setError(visitorJson.error || "Visitor not found");
+          // Check if this is an incomplete form error
+          if (visitorJson.status === 'incomplete' || visitorJson.status === 'form-incomplete') {
+            setIncompleteFormError({
+              message: visitorJson.message || visitorJson.error || "Please complete your visitor information first.",
+              missingFields: visitorJson.missingFields || [],
+              email: visitorJson.email
+            });
+            setError(""); // Clear regular error
+          } else {
+            // Show detailed error message including missing fields if available
+            let errorMessage = visitorJson.error || "Visitor not found";
+            if (visitorJson.missingFields && visitorJson.missingFields.length > 0) {
+              errorMessage += ` Missing: ${visitorJson.missingFields.join(', ')}`;
+            }
+            setIncompleteFormError(null); // Clear incomplete form error
+            setError(errorMessage);
+          }
+          console.error("❌ Backup Code Validation Failed:", {
+            error: visitorJson.error,
+            status: visitorJson.status,
+            missingFields: visitorJson.missingFields,
+            message: visitorJson.message
+          });
         }
       }
     } catch (err) {
@@ -1161,8 +1217,44 @@ const VisitorScanner = () => {
             </div>
           )}
 
+              {/* Incomplete Form Error Message - Special handling for walk-in visitors */}
+          {incompleteFormError && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 rounded-2xl p-6 shadow-lg">
+                  <h3 className="font-semibold text-amber-900 mb-3 flex items-center text-lg" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    <i className="fa-solid fa-exclamation-circle mr-3 text-amber-600 text-xl"></i>
+                    Visitor Haven't Complete Their Details
+              </h3>
+                  <div className="text-sm text-amber-800 mb-4 font-semibold" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    This visitor has not completed their required information. Please complete all required fields before checking in.
+              </div>
+                  {incompleteFormError.missingFields && incompleteFormError.missingFields.length > 0 && (
+                    <div className="bg-white rounded-lg p-4 border border-amber-200 mb-4">
+                      <p className="text-xs font-semibold text-amber-900 mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                        Missing Information:
+                      </p>
+                      <ul className="list-disc list-inside text-xs text-amber-800 space-y-1">
+                        {incompleteFormError.missingFields.map((field, index) => (
+                          <li key={index} style={{fontFamily: 'Telegraf, sans-serif'}}>
+                            {field === 'first_name' ? 'First Name' :
+                             field === 'last_name' ? 'Last Name' :
+                             field === 'email' ? 'Email' :
+                             field === 'gender' ? 'Gender' : field}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs text-blue-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      <i className="fa-solid fa-info-circle mr-2"></i>
+                      Please check your email for the registration link and complete all required fields before checking in.
+                    </p>
+                  </div>
+            </div>
+          )}
+
               {/* Modern Error Message */}
-          {error && (
+          {error && !incompleteFormError && (
                 <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-2xl p-6 shadow-lg">
                   <h3 className="font-semibold text-red-800 mb-3 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
                     <i className="fa-solid fa-exclamation-triangle mr-3 text-red-600"></i>

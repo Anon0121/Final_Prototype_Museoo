@@ -52,7 +52,10 @@ const createTransporter = () => {
       auth: {
         user: 'museoweb1@gmail.com',
         pass: 'akrtgds yyprsfxyi'
-      }
+      },
+      connectionTimeout: 10000, // 10 seconds connection timeout
+      greetingTimeout: 10000,   // 10 seconds greeting timeout
+      socketTimeout: 10000       // 10 seconds socket timeout
     });
     
     // Test the transporter configuration
@@ -717,7 +720,12 @@ router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT d.*, dd.amount, dd.item_description, dd.estimated_value, dd.\`condition\`, dd.loan_start_date, dd.loan_end_date,
-              dms.preferred_visit_date, dms.preferred_visit_time,
+              COALESCE(d.preferred_visit_date, dms.preferred_visit_date) AS preferred_visit_date,
+              COALESCE(d.preferred_visit_time, dms.preferred_visit_time) AS preferred_visit_time,
+              dms.scheduled_date, dms.scheduled_time as scheduled_meeting_time,
+              (SELECT MAX(submission_date) FROM donation_city_hall_submission WHERE donation_id = d.id) as city_hall_submission_date,
+              (SELECT MAX(approval_date) FROM donation_city_hall_submission WHERE donation_id = d.id) as city_hall_approval_date,
+              (SELECT MAX(sent_date) FROM donation_acknowledgments WHERE donation_id = d.id) as final_approval_date,
               GROUP_CONCAT(doc.file_path ORDER BY doc.id) as attachment_paths,
               GROUP_CONCAT(doc.file_name ORDER BY doc.id) as attachment_names,
               GROUP_CONCAT(doc.document_type ORDER BY doc.id) as attachment_types,
@@ -731,8 +739,37 @@ router.get('/', async (req, res) => {
     );
     res.json({ donations: rows });
   } catch (err) {
+    // If error is due to missing table, retry without city hall subqueries
+    if (err.message && err.message.includes("donation_city_hall_submission")) {
+      try {
+        const [rows] = await pool.query(
+          `SELECT d.*, dd.amount, dd.item_description, dd.estimated_value, dd.\`condition\`, dd.loan_start_date, dd.loan_end_date,
+              COALESCE(d.preferred_visit_date, dms.preferred_visit_date) AS preferred_visit_date,
+              COALESCE(d.preferred_visit_time, dms.preferred_visit_time) AS preferred_visit_time,
+              dms.scheduled_date, dms.scheduled_time as scheduled_meeting_time,
+              NULL as city_hall_submission_date,
+              NULL as city_hall_approval_date,
+              NULL as final_approval_date,
+              GROUP_CONCAT(doc.file_path ORDER BY doc.id) as attachment_paths,
+              GROUP_CONCAT(doc.file_name ORDER BY doc.id) as attachment_names,
+              GROUP_CONCAT(doc.document_type ORDER BY doc.id) as attachment_types,
+              COUNT(doc.id) as attachment_count
+       FROM donations d
+       LEFT JOIN donation_details dd ON d.id = dd.donation_id
+       LEFT JOIN donation_meeting_schedule dms ON d.id = dms.donation_id
+       LEFT JOIN donation_documents doc ON d.id = doc.donation_id
+       GROUP BY d.id
+       ORDER BY d.created_at DESC`
+        );
+        res.json({ donations: rows });
+        return;
+      } catch (retryErr) {
+        console.error('Error fetching donations (retry):', retryErr);
+      }
+    }
     console.error('Error fetching donations:', err);
-    res.status(500).json({ success: false, error: 'Database error' });
+    console.error('Error details:', err.message);
+    res.status(500).json({ success: false, error: 'Database error', details: err.message });
   }
 });
 
@@ -741,7 +778,10 @@ router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(
-      `SELECT d.*, dd.amount, dd.item_description, dd.estimated_value, dd.\`condition\`, dd.loan_start_date, dd.loan_end_date
+      `SELECT d.*, dd.amount, dd.item_description, dd.estimated_value, dd.\`condition\`, dd.loan_start_date, dd.loan_end_date,
+              (SELECT MAX(submission_date) FROM donation_city_hall_submission WHERE donation_id = d.id) as city_hall_submission_date,
+              (SELECT MAX(approval_date) FROM donation_city_hall_submission WHERE donation_id = d.id) as city_hall_approval_date,
+              (SELECT MAX(sent_date) FROM donation_acknowledgments WHERE donation_id = d.id) as final_approval_date
        FROM donations d
        LEFT JOIN donation_details dd ON d.id = dd.donation_id
        WHERE d.id = ?`,
@@ -955,6 +995,9 @@ router.post('/:id/reject', async (req, res) => {
   const { rejection_reason } = req.body;
   
   try {
+    console.log('🔄 Rejecting donation ID:', id);
+    console.log('📝 Rejection reason:', rejection_reason);
+    
     // Get donation details before updating
     const [donations] = await pool.query(
       'SELECT donor_name, donor_email FROM donations WHERE id = ?',
@@ -962,20 +1005,33 @@ router.post('/:id/reject', async (req, res) => {
     );
     
     if (donations.length === 0) {
+      console.log('❌ Donation not found:', id);
       return res.status(404).json({ success: false, error: 'Donation not found' });
     }
     
     const donation = donations[0];
+    console.log('✅ Found donation:', donation.donor_name, donation.donor_email);
     
-    // Update donation status with rejection reason
-    await pool.query('UPDATE donations SET status = ?, processing_stage = ?, rejection_reason = ? WHERE id = ?', 
-      ['rejected', 'rejected', rejection_reason || 'No reason provided', id]);
+    // Update donation status to rejected
+    // Note: rejection_reason column may not exist in all database schemas, so we'll update without it
+    const [updateResult] = await pool.query(
+      'UPDATE donations SET status = ?, processing_stage = ? WHERE id = ?', 
+      ['rejected', 'rejected', id]
+    );
+    
+    console.log('✅ Donation status updated. Affected rows:', updateResult.affectedRows);
     
     // Log activity
-    try { await logActivity(req, 'donation.reject', { donationId: id }); } catch {}
+    try { 
+      await logActivity(req, 'donation.reject', { donationId: id }); 
+      console.log('✅ Activity logged');
+    } catch (logError) {
+      console.error('⚠️ Failed to log activity:', logError);
+    }
     
     // Send rejection email to donor
     try {
+      console.log('📧 Attempting to send rejection email to:', donation.donor_email);
       const emailResult = await sendMeetingRejectionEmail(
         donation.donor_name,
         donation.donor_email,
@@ -998,6 +1054,7 @@ router.post('/:id/reject', async (req, res) => {
       }
     } catch (emailError) {
       console.error('❌ Error sending rejection email:', emailError);
+      // Still return success since the rejection was processed
       res.json({ 
         success: true, 
         message: 'Donation rejected but email notification failed',
@@ -1006,7 +1063,18 @@ router.post('/:id/reject', async (req, res) => {
     }
   } catch (err) {
     console.error('❌ Donation reject error:', err);
-    res.status(500).json({ success: false, error: 'Database error' });
+    console.error('❌ Error stack:', err.stack);
+    console.error('❌ Error details:', {
+      message: err.message,
+      code: err.code,
+      sqlMessage: err.sqlMessage,
+      sqlState: err.sqlState
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Database error: ' + (err.message || 'Unknown error'),
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
@@ -1830,38 +1898,43 @@ router.post('/:id/schedule-meeting', isAuthenticated, logUserActivity, async (re
       [id]
     );
 
-    if (donations.length > 0) {
-      const donation = donations[0];
-      
-      // Send meeting schedule email to donor
-      try {
-        const emailResult = await sendMeetingScheduleEmail(
-          donation.donor_name,
-          donation.donor_email,
-          {
-            scheduled_date,
-            scheduled_time,
-            location,
-            staff_member,
-            suggested_alternative_dates
-          }
-        );
-        
-        if (emailResult.success) {
-          console.log('✅ Meeting schedule email sent successfully');
-        } else {
-          console.log('⚠️ Meeting schedule email failed:', emailResult.error);
-        }
-      } catch (emailError) {
-        console.error('❌ Error sending meeting schedule email:', emailError);
-      }
-    }
-
     await conn.commit();
+    
+    // Send response immediately to avoid timeout
     res.json({ 
       success: true, 
       message: 'Meeting scheduled successfully and donor has been notified'
     });
+
+    // Send email asynchronously after response (non-blocking)
+    if (donations.length > 0) {
+      const donation = donations[0];
+      
+      // Use setTimeout to send email asynchronously without blocking
+      setImmediate(async () => {
+        try {
+          const emailResult = await sendMeetingScheduleEmail(
+            donation.donor_name,
+            donation.donor_email,
+            {
+              scheduled_date,
+              scheduled_time,
+              location,
+              staff_member,
+              suggested_alternative_dates
+            }
+          );
+          
+          if (emailResult.success) {
+            console.log('✅ Meeting schedule email sent successfully');
+          } else {
+            console.log('⚠️ Meeting schedule email failed:', emailResult.error);
+          }
+        } catch (emailError) {
+          console.error('❌ Error sending meeting schedule email:', emailError);
+        }
+      });
+    }
   } catch (err) {
     await conn.rollback();
     console.error('Error scheduling meeting:', err);
@@ -2401,7 +2474,17 @@ const sendMeetingScheduleEmail = async (donorName, donorEmail, meetingDetails) =
       html: htmlTemplate
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    // Add timeout wrapper to prevent hanging
+    const sendEmailWithTimeout = (transporter, mailOptions, timeoutMs = 10000) => {
+      return Promise.race([
+        transporter.sendMail(mailOptions),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Email sending timeout')), timeoutMs)
+        )
+      ]);
+    };
+
+    const info = await sendEmailWithTimeout(transporter, mailOptions, 10000);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('❌ ERROR SENDING MEETING SCHEDULE EMAIL:', error);
@@ -2620,10 +2703,21 @@ router.post('/:id/advance-stage', isAuthenticated, logUserActivity, async (req, 
     await conn.beginTransaction();
 
     // Get current donation details
-    const [donations] = await conn.query(
-      'SELECT donor_name, donor_email, processing_stage, type, request_date, amount, item_description, estimated_value, method FROM donations WHERE id = ?',
-      [id]
-    );
+    const [donations] = await conn.query(`
+      SELECT 
+        d.donor_name, 
+        d.donor_email, 
+        d.processing_stage, 
+        d.type, 
+        d.request_date,
+        dd.amount, 
+        dd.item_description, 
+        dd.estimated_value, 
+        dd.method 
+      FROM donations d
+      LEFT JOIN donation_details dd ON d.id = dd.donation_id
+      WHERE d.id = ?
+    `, [id]);
 
     if (donations.length === 0) {
       return res.status(404).json({ success: false, error: 'Donation not found' });

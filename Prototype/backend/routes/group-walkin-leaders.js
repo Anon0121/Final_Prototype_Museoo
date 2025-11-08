@@ -170,6 +170,24 @@ router.put('/:tokenId', async (req, res) => {
     
     const visitorId = visitorResult.insertId;
     
+    // AUTOMATICALLY UPDATE ALL ADDITIONAL VISITORS in the same booking with institution and purpose
+    // This ensures even if leader completes last, all visitors get the updated institution/purpose
+    // IMPORTANT: Only updates visitors in the SAME booking (filtered by booking_id)
+    console.log(`🔄 Updating institution and purpose for all additional visitors in booking ${tokenInfo.booking_id}`);
+    
+    // Update all additional visitors in visitors table - ONLY in the same booking
+    // Filters by: booking_id (same booking), is_main_visitor = false (additional visitors only), visitor_id != leader
+    const [updatedVisitors] = await connection.query(
+      `UPDATE visitors SET 
+        institution = ?, 
+        purpose = ?
+       WHERE booking_id = ? 
+       AND is_main_visitor = false 
+       AND visitor_id != ?`,
+      [institution || '', purpose || 'educational', tokenInfo.booking_id, visitorId]
+    );
+    console.log(`✅ Updated ${updatedVisitors.affectedRows} additional visitor records in visitors table`);
+    
     // Generate QR code for the group leader
     const qrData = {
       type: 'walkin_visitor',
@@ -305,8 +323,10 @@ router.put('/:tokenId', async (req, res) => {
         const additionalQrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(additionalQrData));
         const additionalBase64Data = additionalQrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
         
-        // Create simplified form link for additional visitors
-        const additionalFormUrl = `http://localhost:5173/group-walkin-member?token=${additionalVisitor.token_id}`;
+        // Create simplified form link for additional visitors - use HTTPS for production
+        const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+        const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+        const additionalFormUrl = `${frontendProtocol}://${frontendHost}/group-walkin-member?token=${additionalVisitor.token_id}`;
         
         const additionalVisitorEmailHtml = `
         <html>
@@ -450,6 +470,77 @@ router.post('/:visitorId/checkin', async (req, res) => {
         success: false,
         error: 'This visitor has already been checked in.',
         status: visitor.status
+      });
+    }
+    
+    // STEP: Check if visitor has completed their details - REQUIRED before check-in
+    console.log('📋 Checking group walk-in leader completion status...');
+    console.log('📋 Visitor fields:', {
+      first_name: visitor.first_name,
+      last_name: visitor.last_name,
+      email: visitor.email,
+      gender: visitor.gender
+    });
+    
+    // Check for placeholder/default values that indicate incomplete information
+    const firstName = (visitor.first_name || '').trim();
+    const lastName = (visitor.last_name || '').trim();
+    const email = (visitor.email || '').trim();
+    const gender = (visitor.gender || '').trim();
+    
+    // Check if name is a placeholder (like "Walk-in Visitor", "Visitor", "Group Leader", etc.)
+    const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+    const isPlaceholderName = fullName === 'walk-in visitor' || 
+                              fullName === 'visitor' ||
+                              fullName === 'group leader' ||
+                              fullName === 'group visitor' ||
+                              firstName.toLowerCase() === 'walk-in visitor' ||
+                              firstName.toLowerCase() === 'visitor' ||
+                              firstName.toLowerCase() === 'walk-in' ||
+                              firstName.toLowerCase() === 'group' ||
+                              lastName.toLowerCase() === 'visitor' ||
+                              lastName.toLowerCase() === 'leader' ||
+                              (firstName === '' && lastName === '') ||
+                              (firstName.toLowerCase() === 'walk-in' && lastName.toLowerCase() === 'visitor') ||
+                              (firstName.toLowerCase() === 'group' && lastName.toLowerCase() === 'leader');
+    
+    const hasRequiredFields = firstName !== '' && 
+                              lastName !== '' && 
+                              email !== '' &&
+                              !isPlaceholderName;
+    
+    // Group walk-in leaders need all fields including gender
+    const hasAllRequiredInfo = hasRequiredFields && gender !== '';
+    
+    console.log('📋 Has all required info:', hasAllRequiredInfo);
+    console.log('📋 Is placeholder name:', isPlaceholderName);
+    console.log('📋 Field values:', { firstName, lastName, email, gender });
+    
+    if (!hasAllRequiredInfo) {
+      const missingFields = [];
+      // Check each field individually - only add if it's actually missing
+      // For name fields, check if they're empty OR if the full name is a placeholder
+      if (isPlaceholderName || !firstName || firstName.trim() === '') {
+        missingFields.push('first_name');
+      }
+      if (isPlaceholderName || !lastName || lastName.trim() === '') {
+        missingFields.push('last_name');
+      }
+      if (!email || email.trim() === '') {
+        missingFields.push('email');
+      }
+      if (!gender || gender.trim() === '') {
+        missingFields.push('gender');
+      }
+      
+      console.log('❌ Missing required fields:', missingFields);
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Please complete your visitor information first before you can use the backup code to check in.',
+        status: 'incomplete',
+        message: 'You must fill out all required fields in your visitor form before checking in.',
+        missingFields: missingFields
       });
     }
     

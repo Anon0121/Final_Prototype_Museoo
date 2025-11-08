@@ -241,32 +241,36 @@ const PromotionalManagement = () => {
     }
   };
 
+  const [bulkDeleteModal, setBulkDeleteModal] = useState({ show: false });
   const handleBulkDelete = async () => {
-    if (window.confirm(`Are you sure you want to delete ${selectedItems.length} promotional items?`)) {
-      try {
-        const promises = selectedItems.map(id => 
-          api.delete(`/api/promotional/${id}`)
-        );
-        await Promise.all(promises);
-        setNotification({
-          show: true,
-          type: 'success',
-          title: 'Bulk Delete Successful!',
-          message: `${selectedItems.length} promotional items have been permanently removed.`,
-          description: 'All selected items have been successfully deleted.'
-        });
-        setSelectedItems([]);
-        fetchPromotionalItems();
-      } catch (error) {
-        console.error('Error bulk deleting items:', error);
-        setNotification({
-          show: true,
-          type: 'error',
-          title: 'Bulk Delete Failed',
-          message: 'There was an error deleting some promotional items. Please try again.',
-          description: 'Please check your internet connection and try again.'
-        });
-      }
+    setBulkDeleteModal({ show: true });
+  };
+  const confirmBulkDelete = async () => {
+    try {
+      const promises = selectedItems.map(id => 
+        api.delete(`/api/promotional/${id}`)
+      );
+      await Promise.all(promises);
+      setNotification({
+        show: true,
+        type: 'success',
+        title: 'Bulk Delete Successful!',
+        message: `${selectedItems.length} promotional items have been permanently removed.`,
+        description: 'All selected items have been successfully deleted.'
+      });
+      setSelectedItems([]);
+      fetchPromotionalItems();
+    } catch (error) {
+      console.error('Error bulk deleting items:', error);
+      setNotification({
+        show: true,
+        type: 'error',
+        title: 'Bulk Delete Failed',
+        message: 'There was an error deleting some promotional items. Please try again.',
+        description: 'Please check your internet connection and try again.'
+      });
+    } finally {
+      setBulkDeleteModal({ show: false });
     }
   };
 
@@ -322,29 +326,34 @@ const PromotionalManagement = () => {
     setDragIndex(null);
   };
 
+  const [deletePromotionalModal, setDeletePromotionalModal] = useState({ show: false, id: null, itemTitle: null });
   const handleDelete = async (id) => {
     const itemToDelete = promotionalItems.find(item => item.id === id);
-    if (window.confirm('Are you sure you want to delete this promotional item?')) {
-      try {
-        await api.delete(`/api/promotional/${id}`);
-        setNotification({
-          show: true,
-          type: 'success',
-          title: 'Promotional Item Deleted Successfully!',
-          message: 'The promotional item has been permanently removed.',
-          description: `"${itemToDelete?.title || 'Item'}" has been successfully deleted.`
-        });
-        fetchPromotionalItems();
-      } catch (error) {
-        console.error('Error deleting promotional item:', error);
-        setNotification({
-          show: true,
-          type: 'error',
-          title: 'Failed to Delete Promotional Item',
-          message: 'There was an error deleting the promotional item. Please try again.',
-          description: 'Please check your internet connection and try again.'
-        });
-      }
+    setDeletePromotionalModal({ show: true, id: id, itemTitle: itemToDelete?.title || 'Item' });
+  };
+  const confirmDeletePromotional = async () => {
+    if (!deletePromotionalModal.id) return;
+    try {
+      await api.delete(`/api/promotional/${deletePromotionalModal.id}`);
+      setNotification({
+        show: true,
+        type: 'success',
+        title: 'Promotional Item Deleted Successfully!',
+        message: 'The promotional item has been permanently removed.',
+        description: `"${deletePromotionalModal.itemTitle}" has been successfully deleted.`
+      });
+      fetchPromotionalItems();
+    } catch (error) {
+      console.error('Error deleting promotional item:', error);
+      setNotification({
+        show: true,
+        type: 'error',
+        title: 'Failed to Delete Promotional Item',
+        message: 'There was an error deleting the promotional item. Please try again.',
+        description: 'Please check your internet connection and try again.'
+      });
+    } finally {
+      setDeletePromotionalModal({ show: false, id: null, itemTitle: null });
     }
   };
 
@@ -624,14 +633,14 @@ const PromotionalManagement = () => {
                             e.stopPropagation();
                             handleToggleActive(item.id, item.isActive);
                           }}
-                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center transition-colors ${
+                          className={`w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-colors ${
                             item.isActive 
                               ? 'bg-green-100 text-green-600 hover:bg-green-200' 
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                           title={item.isActive ? 'Deactivate' : 'Activate'}
                         >
-                          <FontAwesomeIcon icon={item.isActive ? faEyeSlash : faEye} className="text-xs" />
+                          <FontAwesomeIcon icon={item.isActive ? faEyeSlash : faEye} className="text-sm" />
                         </button>
                         
                         <button
@@ -639,10 +648,10 @@ const PromotionalManagement = () => {
                             e.stopPropagation();
                             handleEdit(item);
                           }}
-                          className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 text-blue-600 rounded flex items-center justify-center hover:bg-blue-200 transition-colors"
+                          className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-200 transition-colors"
                           title="Edit"
                         >
-                          <FontAwesomeIcon icon={faEdit} className="text-xs" />
+                          <FontAwesomeIcon icon={faEdit} className="text-sm" />
                         </button>
                         
                         <button
@@ -650,10 +659,10 @@ const PromotionalManagement = () => {
                             e.stopPropagation();
                             handleDelete(item.id);
                           }}
-                          className="w-5 h-5 sm:w-6 sm:h-6 bg-red-100 text-red-600 rounded flex items-center justify-center hover:bg-red-200 transition-colors"
+                          className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-200 transition-colors"
                           title="Delete"
                         >
-                          <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                          <FontAwesomeIcon icon={faTrash} className="text-sm" />
                         </button>
                       </div>
                     </div>
@@ -817,7 +826,26 @@ const PromotionalManagement = () => {
                         placeholder="e.g., Now Showing, Coming Soon, Special Event"
                         style={{fontFamily: 'Telegraf, sans-serif'}}
                       />
-                      <p className="text-sm text-gray-500" style={{fontFamily: 'Telegraf, sans-serif'}}>This will appear as a decorative tag on the promotional item</p>
+                      <p className="text-sm text-gray-500" style={{fontFamily: 'Telegraf, sans-serif'}}>This will appear as a button text on the promotional item</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-semibold text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                        <i className="fa-solid fa-link mr-2" style={{color: '#E5B80B'}}></i>
+                        CTA Link (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        name="ctaLink"
+                        value={formData.ctaLink}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all duration-300 bg-gray-50 focus:bg-white"
+                        placeholder="e.g., /events, /exhibits, https://example.com"
+                        style={{fontFamily: 'Telegraf, sans-serif'}}
+                      />
+                      <p className="text-sm text-gray-500" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                        Enter a URL or route. External links (http://) will open in a new tab. Internal routes (e.g., /events) will navigate within the site.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -986,6 +1014,100 @@ const PromotionalManagement = () => {
               >
                 <i className="fa-solid fa-check mr-2"></i>
                 Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Promotional Item Modal */}
+      {deletePromotionalModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-orange-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+                <i className="fa-solid fa-question text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Delete Promotional Item
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to delete this promotional item?
+              </p>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                This action cannot be undone.
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setDeletePromotionalModal({ show:false, id:null, itemTitle:null })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeletePromotional}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Promotional Items Modal */}
+      {bulkDeleteModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-orange-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+                <i className="fa-solid fa-question text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Delete {selectedItems.length} Promotional Items
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to delete {selectedItems.length} promotional item{selectedItems.length > 1 ? 's' : ''}?
+              </p>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                This action cannot be undone.
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setBulkDeleteModal({ show:false })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmBulkDelete}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
               </button>
             </div>
           </div>

@@ -325,9 +325,9 @@ const Exhibit = () => {
   };
 
   const fetchExhibits = () => {
-    fetch('http://localhost:3000/api/activities/exhibits')
-      .then(res => res.json())
-      .then(data => {
+    api.get('/api/activities/exhibits')
+      .then(res => {
+        const data = res.data;
         console.log('📊 Fetched exhibits data:', data);
         const mapped = data.map(ex => ({
           ...ex,
@@ -398,12 +398,12 @@ const Exhibit = () => {
 
     // Send to backend
     try {
-      const res = await fetch('http://localhost:3000/api/activities', {
-        method: 'POST',
-        body: formData,
+      const res = await api.post('/api/activities', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
-      const data = await res.json();
-      if (data.success) {
+      if (res.data.success) {
         // Close modal first
         setShowModal(false);
         
@@ -440,41 +440,40 @@ const Exhibit = () => {
           type: 'error',
           title: 'Error!',
           message: 'Failed to add exhibit.',
-          description: 'Please check your input and try again.'
+          description: res.data.message || 'Please check your input and try again.'
         });
       }
     } catch (err) {
+      console.error('Error adding exhibit:', err);
       setNotification({
         show: true,
         type: 'error',
         title: 'Error!',
         message: 'Error adding exhibit.',
-        description: 'Please try again later.'
+        description: err.response?.data?.message || err.message || 'Please try again later.'
       });
     } finally {
       setSubmitting(false);
     }
   };
 
+  const [deleteExhibitModal, setDeleteExhibitModal] = useState({ show: false, id: null });
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this exhibit? This action cannot be undone.')) return;
+    setDeleteExhibitModal({ show: true, id: id });
+  };
+  const confirmDeleteExhibit = async () => {
+    if (!deleteExhibitModal.id) return;
     
     try {
-      console.log(`🗑️ Attempting to delete exhibit with ID: ${id}`);
+      console.log(`🗑️ Attempting to delete exhibit with ID: ${deleteExhibitModal.id}`);
       
-      const response = await fetch(`http://localhost:3000/api/activities/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await api.delete(`/api/activities/${deleteExhibitModal.id}`);
       
-      const data = await response.json();
-      console.log('🗑️ Delete response:', data);
+      console.log('🗑️ Delete response:', response.data);
       
-      if (response.ok && data.success) {
+      if (response.data.success) {
         // Remove from local state
-        setExhibits(exhibits.filter((item) => item.id !== id));
+        setExhibits(exhibits.filter((item) => item.id !== deleteExhibitModal.id));
         
         // Show success notification
         setNotification({
@@ -485,15 +484,15 @@ const Exhibit = () => {
           description: 'The exhibit and all its associated data have been removed from the collection.'
         });
         
-        console.log(`✅ Successfully deleted exhibit ${id}`);
+        console.log(`✅ Successfully deleted exhibit ${deleteExhibitModal.id}`);
       } else {
-        console.error('❌ Delete failed:', data);
+        console.error('❌ Delete failed:', response.data);
         setNotification({
           show: true,
           type: 'error',
           title: 'Error!',
           message: 'Failed to delete exhibit.',
-          description: data.error || 'Please try again later.'
+          description: response.data.error || 'Please try again later.'
         });
       }
     } catch (error) {
@@ -503,8 +502,10 @@ const Exhibit = () => {
         type: 'error',
         title: 'Error!',
         message: 'Error deleting exhibit.',
-        description: 'Network error. Please check your connection and try again.'
+        description: error.response?.data?.error || error.message || 'Network error. Please check your connection and try again.'
       });
+    } finally {
+      setDeleteExhibitModal({ show: false, id: null });
     }
   };
 
@@ -619,16 +620,28 @@ const Exhibit = () => {
                           <i className="fa-solid fa-tag mr-2" style={{color: '#E5B80B'}}></i>
                           Category *
                         </label>
-                        <input
-                          type="text"
+                        <select
                           name="category"
                           value={form.category}
                           onChange={handleChange}
                           required
                           className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all duration-300 bg-gray-50 focus:bg-white"
-                          placeholder="e.g., Modern Art, History, Science"
                           style={{fontFamily: 'Telegraf, sans-serif'}}
-                        />
+                        >
+                          <option value="">Select Category</option>
+                          <option value="Cultural History">Cultural History</option>
+                          <option value="Art">Art</option>
+                          <option value="Archaeology">Archaeology</option>
+                          <option value="Science">Science</option>
+                          <option value="Natural History">Natural History</option>
+                          <option value="Modern Art">Modern Art</option>
+                          <option value="History">History</option>
+                          <option value="Technology">Technology</option>
+                          <option value="Photography">Photography</option>
+                          <option value="Sculpture">Sculpture</option>
+                          <option value="Textiles">Textiles</option>
+                          <option value="Other">Other</option>
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -1591,6 +1604,53 @@ const Exhibit = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Exhibit Modal */}
+      {deleteExhibitModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-orange-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+                <i className="fa-solid fa-question text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Delete Exhibit
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to delete this exhibit?
+              </p>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                This action cannot be undone.
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setDeleteExhibitModal({ show:false, id:null })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteExhibit}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1688,19 +1748,19 @@ const ExhibitSection = ({ data, onDelete, onView, faded }) => {
               <div className="flex justify-end gap-1">
                 <button
                   onClick={() => onView(exhibit)}
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-green-100 hover:bg-green-200 text-green-600 rounded flex items-center justify-center transition-colors"
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-green-100 hover:bg-green-200 text-green-600 rounded-lg flex items-center justify-center transition-colors"
                   title="View Exhibit"
                 >
-                  <i className="fa-solid fa-eye text-xs"></i>
+                  <i className="fa-solid fa-eye text-sm"></i>
                 </button>
                 
                 {/* Show delete button for all exhibits (including history) */}
                 <button
                   onClick={() => onDelete(exhibit.id)}
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors"
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg flex items-center justify-center transition-colors"
                   title="Delete Exhibit"
                 >
-                  <i className="fa-solid fa-trash text-xs"></i>
+                  <i className="fa-solid fa-trash text-sm"></i>
                 </button>
               </div>
             </div>

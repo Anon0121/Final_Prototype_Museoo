@@ -23,6 +23,7 @@ const AdditionalVisitorForm = () => {
     institution: "",
     purpose: "educational"
   });
+  const [showConsentModal, setShowConsentModal] = useState(true);
 
   useEffect(() => {
     const fetchTokenInfo = async () => {
@@ -57,7 +58,9 @@ const AdditionalVisitorForm = () => {
           // Pre-fill email from token info
           setVisitorInfo(prev => ({
             ...prev,
-            email: tokenData.email
+          email: tokenData.email,
+          institution: tokenData.institution || "",
+          purpose: tokenData.purpose || prev.purpose
           }));
         } else {
           setError("Invalid or expired token");
@@ -92,8 +95,10 @@ const AdditionalVisitorForm = () => {
         lastName: visitorInfo.lastName,
         gender: visitorInfo.gender,
         address: visitorInfo.address,
-        visitorType: visitorInfo.visitorType
-        // institution and purpose are automatically set from primary visitor
+        visitorType: visitorInfo.visitorType,
+        email: visitorInfo.email,
+        institution: visitorInfo.institution,
+        purpose: visitorInfo.purpose
       });
 
       if (response.data.success) {
@@ -109,6 +114,14 @@ const AdditionalVisitorForm = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConsentAgree = () => {
+    setShowConsentModal(false);
+  };
+
+  const handleConsentDecline = () => {
+    navigate("/");
   };
 
   if (loading && !success) {
@@ -201,9 +214,78 @@ const AdditionalVisitorForm = () => {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center" style={{
+    <div className="relative min-h-screen bg-cover bg-center" style={{
       backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${citymus})`
     }}>
+      {showConsentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 bg-black/60 backdrop-blur-sm">
+          <div className="max-w-3xl w-full bg-white rounded-2xl shadow-2xl border border-[#8B6B21]/40 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#351E10] via-[#5C3A18] to-[#8B6B21] px-6 py-5 sm:px-8 sm:py-6">
+              <div className="flex items-start space-x-4">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 border border-white/30 shadow-lg shadow-black/30 flex items-center justify-center text-white">
+                  <i className="fa-solid fa-file-signature text-xl sm:text-2xl"></i>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm sm:text-base uppercase tracking-[0.2em] text-white/70" style={{fontFamily: 'Telegraf, sans-serif'}}>Additional Visitor Consent</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white" style={{fontFamily: 'Telegraf, sans-serif'}}>Before You Complete This Form</h2>
+                  <p className="text-white/80 text-sm sm:text-base leading-relaxed" style={{fontFamily: 'Lora, serif'}}>
+                    Please review how the museum handles your personal information and what is expected from every attendee in the group booking.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 sm:px-8 sm:py-6 space-y-4 text-sm sm:text-base text-gray-700" style={{fontFamily: 'Lora, serif'}}>
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#E5B80B]/20 flex items-center justify-center text-[#8B6B21]">
+                  <i className="fa-solid fa-database text-sm"></i>
+                </div>
+                <p>
+                  The City Museum of Cagayan de Oro collects your information to update the QR code for your group visit, verify attendance, and comply with the Data Privacy Act of 2012. Your data is stored securely and only used for museum operations.
+                </p>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#E5B80B]/20 flex items-center justify-center text-[#8B6B21]">
+                  <i className="fa-solid fa-people-group text-sm"></i>
+                </div>
+                <p>
+                  You agree to follow museum guidelines, respect your scheduled visit time, and use the same QR code sent via email for check-in on the day of the visit.
+                </p>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#E5B80B]/20 flex items-center justify-center text-[#8B6B21]">
+                  <i className="fa-solid fa-envelope-circle-check text-sm"></i>
+                </div>
+                <p>
+                  By proceeding, you allow the museum to contact you using the email provided for confirmations or important advisories related to this group booking.
+                </p>
+              </div>
+              <p className="font-semibold text-[#351E10]" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Do you agree to these terms and to the collection and processing of your personal information for this group booking?
+              </p>
+            </div>
+
+            <div className="px-6 py-5 sm:px-8 sm:py-6 bg-white border-t border-[#8B6B21]/30 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <button
+                onClick={handleConsentDecline}
+                className="w-full sm:w-1/2 px-4 py-3 rounded-xl font-semibold border-2 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-200"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                I Decline
+              </button>
+              <button
+                onClick={handleConsentAgree}
+                className="w-full sm:w-1/2 px-4 py-3 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                I Agree & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={showConsentModal ? "pointer-events-none select-none opacity-40 transition-opacity duration-300" : "opacity-100 transition-opacity duration-300"}>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -286,7 +368,7 @@ const AdditionalVisitorForm = () => {
                      {[
                        { value: "male", label: "Male" },
                        { value: "female", label: "Female" },
-                       { value: "lgbt", label: "LGBT" }
+                       { value: "lgbtq", label: "LGBTQ+" }
                      ].map((option) => (
                        <label key={option.value} className="relative flex items-center cursor-pointer group">
                          <input
@@ -423,6 +505,7 @@ const AdditionalVisitorForm = () => {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

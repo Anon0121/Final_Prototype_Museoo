@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../../config/api";
 import citymus from "../../assets/citymus.jpg";
 import logo from "../../assets/logo.png";
@@ -16,6 +16,7 @@ const TIME_SLOTS = [
 const SLOT_CAPACITY = 30;
 
 const ScheduleVisit = () => {
+  const navigate = useNavigate();
   const [isGroup, setIsGroup] = useState(false);
   const [visitDate, setVisitDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
@@ -35,6 +36,7 @@ const ScheduleVisit = () => {
   const [companions, setCompanions] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
+  const [showConsentModal, setShowConsentModal] = useState(true);
 
   // Fetch real-time slots from database
   useEffect(() => {
@@ -118,6 +120,14 @@ const ScheduleVisit = () => {
     }
   };
 
+  const handleConsentConfirm = () => {
+    setShowConsentModal(false);
+  };
+
+  const handleConsentDecline = () => {
+    navigate("/");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -175,7 +185,60 @@ const ScheduleVisit = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-gray-50">
+      {/* Consent Modal */}
+      {showConsentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 bg-black/60 backdrop-blur-sm">
+          <div className="max-w-3xl w-full bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-fade-in">
+            <div className="bg-gradient-to-r from-[#351E10] via-[#5C3A18] to-[#8B6B21] px-6 py-5 sm:px-8 sm:py-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                  <i className="fa-solid fa-shield-halved text-xl sm:text-2xl"></i>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    Privacy & Data Consent
+                  </h2>
+                  <p className="text-white/80 text-sm sm:text-base" style={{fontFamily: 'Lora, serif'}}>
+                    We value your privacy. Please review and accept our terms before booking your visit.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 sm:px-8 sm:py-6 space-y-4 text-sm sm:text-base text-gray-700" style={{fontFamily: 'Lora, serif'}}>
+              <p>
+                By proceeding with the scheduling form, you acknowledge and agree that the City Museum of Cagayan de Oro may collect, store, and process the personal information you provide. This information is used solely for managing your visit, coordinating with your group, and documenting museum attendance.
+              </p>
+              <p>
+                The museum commits to handling your data in accordance with the Data Privacy Act of 2012 and applicable local regulations. We will not share your information with third parties without your explicit consent, except as required by law.
+              </p>
+              <p className="font-semibold text-[#351E10]" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Do you agree to these terms and allow us to collect and process your information for scheduling purposes?
+              </p>
+            </div>
+
+            <div className="px-6 py-5 sm:px-8 sm:py-6 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <button
+                onClick={handleConsentDecline}
+                className="w-full sm:w-1/2 px-4 py-3 rounded-xl font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-all duration-200"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                I Decline
+              </button>
+              <button
+                onClick={handleConsentConfirm}
+                className="w-full sm:w-1/2 px-4 py-3 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                I Agree & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={showConsentModal ? "pointer-events-none select-none opacity-40" : "opacity-100 transition-opacity duration-300"}>
       {/* Navigation */}
       <nav className="bg-white shadow-lg border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
@@ -826,6 +889,7 @@ const ScheduleVisit = () => {
           </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

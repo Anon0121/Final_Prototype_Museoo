@@ -2,15 +2,104 @@ const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const bodyParser = require('body-parser');
+const path = require('path');
+const https = require('https');
+const fs = require('fs');
 const pool = require('./db'); // Import the pool from db.js
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Custom route handler for archive files with proper CORS headers - MUST be before /uploads route
+const handleArchiveFile = (req, res) => {
+  console.log('📁 Archive file request:', req.method, req.originalUrl);
+  
+  // Set CORS headers - ALWAYS use specific origin to avoid wildcard issues
+  const origin = req.headers.origin;
+  // If we have an origin, use it; otherwise default to localhost:5173 (common dev frontend)
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Default to localhost:5173 if no origin header (direct requests)
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'false'); // Archive files don't need credentials
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
+  
+  // Get the file path - req.path is relative to /uploads/archives mount point
+  // Remove leading slash if present
+  const relativePath = req.path.startsWith('/') ? req.path.slice(1) : req.path;
+  const filePath = path.join(__dirname, 'uploads', 'archives', relativePath);
+  
+  console.log('📂 Looking for file:', filePath);
+  console.log('📂 Original URL:', req.originalUrl);
+  console.log('📂 Path:', req.path);
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.error('❌ File not found:', filePath);
+    return res.status(404).json({ error: 'File not found', path: filePath });
+  }
+  
+  // Set Content-Type based on file extension
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.pdf') {
+    res.setHeader('Content-Type', 'application/pdf');
+  } else if (ext === '.doc' || ext === '.docx') {
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  } else if (ext === '.xls' || ext === '.xlsx') {
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  } else if (ext === '.ppt' || ext === '.pptx') {
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+  }
+  
+  // Allow embedding in iframes
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  console.log('✅ Sending file with CORS headers');
+  
+  // Send the file
+  res.sendFile(filePath);
+};
+
+// Register routes for archive files - MUST come before app.use('/uploads')
+// Use app.use with a specific path to ensure it matches before static middleware
+app.use('/uploads/archives', (req, res, next) => {
+  // Only handle if it's a file request (has a filename after /archives/)
+  if (req.path === '/' || req.path === '') {
+    return next(); // Let static middleware handle directory listing
+  }
+  
+  // Handle OPTIONS preflight
+  if (req.method === 'OPTIONS') {
+    console.log('🔧 OPTIONS request for archive file:', req.path);
+    const origin = req.headers.origin;
+    // Always use specific origin, never wildcard
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+    res.setHeader('Access-Control-Allow-Credentials', 'false');
+    res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
+    return res.sendStatus(200);
+  }
+  
+  // Handle GET requests
+  handleArchiveFile(req, res);
+});
+
 // Serve uploaded images
 app.use('/uploads', express.static('uploads'));
 
 app.use('/uploads/profiles', express.static('uploads/profiles'));
+
+// Serve static files from the React build
+app.use(express.static(path.join(__dirname, '../Museoo/dist')));
 
 // ✅ Middleware
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -20,20 +109,58 @@ const { ensureActivityLogTable, logActivity, logUserActivity } = require('./util
 ensureActivityLogTable().catch(err => console.error('Activity log table ensure failed:', err));
 
 
-// Allow both local and Vercel frontend
+// Allow both local and Vercel frontend (HTTP and HTTPS)
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5175',
+  'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5175',
+  'http://127.0.0.1:3000',
   'http://192.168.1.4:5173',
-  'http://192.168.56.1:5173',
+  'http://192.168.1.4:3000',
   'http://192.168.1.6:5173',
-  'https://museoo-project.vercel.app'
+  'http://192.168.1.6:3000',   // Your current IP
+  'http://192.168.1.9:5173',
+  'http://192.168.1.9:3000',
+  'http://192.168.56.1:5173',  // VirtualBox/VMware network
+  'http://192.168.56.1:3000',
+  'https://localhost:5173',
+  'https://localhost:3000',     // HTTPS localhost
+  'https://127.0.0.1:5173',
+  'https://127.0.0.1:3000',
+  'https://192.168.1.6:5173',  // Your current IP HTTPS
+  'https://192.168.1.6:3000',  // Your current IP HTTPS
+  'https://192.168.1.9:5173',
+  'https://192.168.1.9:3000',
+  'https://192.168.56.1:5173',
+  'https://192.168.56.1:3000',
+  'https://museoo-project.vercel.app',
+  'https://museoo-frontend-vercel.app',
+  // Allow all devices on local network (phones, tablets, etc.)
+  /^https?:\/\/(192\.168\.\d+\.\d+|localhost|127\.0\.0\.1)/  // Allow any local IP
 ];
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check against allowed origins
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return allowed === origin;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.log('⚠️ Blocked origin:', origin);
+      callback(null, true); // Allow all for now - remove this in production
+    }
+  },
   credentials: true
 }));
 
@@ -388,7 +515,6 @@ app.put('/api/update-profile', isAuthenticated, async (req, res) => {
 
 // ✅ Upload profile photo
 const multer = require('multer');
-const path = require('path');
 
 // Configure multer for profile photo uploads
 const profilePhotoStorage = multer.diskStorage({
@@ -574,7 +700,6 @@ app.use('/api/backup-codes', require('./routes/backup-codes'));
 
 const archiveRoutes = require('./routes/archive');
 app.use('/api/archives', archiveRoutes);
-app.use('/uploads/archives', express.static(__dirname + '/uploads/archives'));
 
 // Serve donation files
 app.use('/uploads/donations', express.static(__dirname + '/uploads/donations'));
@@ -590,7 +715,6 @@ app.use('/api/stats', statsRouter);
 // Test endpoint for serving images without extensions
 app.get('/test-image/:filename', (req, res) => {
   const fs = require('fs');
-  const path = require('path');
   const filename = req.params.filename;
   const filePath = path.join(__dirname, 'uploads', filename);
   
@@ -618,10 +742,6 @@ app.get('/test-image/:filename', (req, res) => {
   res.status(404).send('Image not found');
 });
 
-
-app.get('/', (req, res) => {
-  res.send('Backend is running!');
-});
 
 // Activity log endpoints
 app.get('/api/activity-logs', isAuthenticated, async (req, res) => {
@@ -669,7 +789,25 @@ app.delete('/api/activity-logs', isAuthenticated, async (req, res) => {
 });
 
 
+// Compression middleware removed - not essential for basic functionality
+
+// Optimize for mobile networks
+app.use((req, res, next) => {
+  // Add cache headers for static assets
+  if (req.url.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg)$/)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+  }
+  next();
+});
+
+// Handle React routing - temporarily disabled due to path-to-regexp error
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '../Museoo/dist/index.html'));
+// });
+
+// Start HTTP server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
-  console.log(`🌐 External access: http://YOUR_COMPUTER_IP:${PORT}`);
+  console.log(`🌐 External access: http://192.168.1.9:${PORT}`);
+  console.log(`📱 Mobile access: http://192.168.1.9:${PORT}`);
 });

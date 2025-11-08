@@ -1,6 +1,6 @@
 // API Configuration
 const getBackendURL = () => {
-  // If accessing from localhost, use localhost
+  // If accessing from localhost, use localhost backend
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:3000';
   }
@@ -18,7 +18,7 @@ const getBackendURL = () => {
     return `${currentProtocol}//${currentHost.replace('5173', '3000')}`;
   }
 
-  // If accessing from external IP, use the same IP for backend
+  // If accessing from external IP, use HTTP backend on same network
   return `http://${window.location.hostname}:3000`;
 };
 
@@ -78,6 +78,9 @@ api.interceptors.response.use(
       return Promise.resolve(error.response);
     }
     console.error('❌ API Response Error:', error.response?.status, error.response?.data?.message || error.message);
+    console.error('📋 Full error:', error);
+    console.error('🌐 Request URL:', error.config?.url);
+    console.error('🔗 Base URL:', error.config?.baseURL);
     return Promise.reject(error);
   }
 );

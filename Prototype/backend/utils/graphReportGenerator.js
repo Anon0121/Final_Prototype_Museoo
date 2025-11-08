@@ -242,8 +242,9 @@ class GraphReportGenerator {
             position: 'bottom',
             labels: {
               font: {
-                size: 10
-              }
+                size: 23
+              },
+              padding: 15
             }
           }
         }
@@ -280,8 +281,9 @@ class GraphReportGenerator {
             position: 'bottom',
             labels: {
               font: {
-                size: 10
-              }
+                size: 23
+              },
+              padding: 15
             }
           }
         }

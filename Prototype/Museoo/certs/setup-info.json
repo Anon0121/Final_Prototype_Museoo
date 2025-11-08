@@ -1,0 +1,9 @@
+{
+  "message": "For HTTPS setup:",
+  "instructions": [
+    "1. Install OpenSSL: https://slproweb.com/products/Win32OpenSSL.html",
+    "2. Or use mkcert: https://github.com/FiloSottile/mkcert",
+    "3. Or use Vite's built-in HTTPS (current setup)"
+  ],
+  "current": "Using Vite's built-in HTTPS with self-signed certificates"
+}

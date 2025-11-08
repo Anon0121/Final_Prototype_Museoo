@@ -148,9 +148,28 @@ router.put('/:tokenId', async (req, res) => {
     // Update the additional visitor record
     await connection.query(
       `UPDATE additional_visitors 
-       SET details = ?, status = 'completed', details_completed_at = NOW()
+       SET first_name = ?, 
+           last_name = ?, 
+           gender = ?, 
+           visitor_type = ?, 
+           address = ?, 
+           institution = ?, 
+           purpose = ?, 
+           details = ?, 
+           status = 'completed', 
+           details_completed_at = NOW()
        WHERE token_id = ?`,
-      [JSON.stringify(details), tokenId]
+      [
+        firstName,
+        lastName,
+        gender,
+        visitorType,
+        address,
+        tokenInfo.group_leader_institution || '',
+        tokenInfo.group_leader_purpose || 'educational',
+        JSON.stringify(details),
+        tokenId
+      ]
     );
     
     // Create visitor record in visitors table

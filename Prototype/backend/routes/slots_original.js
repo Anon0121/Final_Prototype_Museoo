@@ -139,8 +139,10 @@ router.put('/bookings/:id/approve', async (req, res) => {
     }
     const visitor = visitorRows[0];
 
-    // 3. Generate QR code (encode a check-in URL)
-    const checkinUrl = `http://localhost:3000/api/visit/checkin/${id}`;
+    // 3. Generate QR code (encode a check-in URL) - use HTTPS for production
+    const protocol = req.protocol || 'https';
+    const host = req.get('host') || '192.168.1.6:3000';
+    const checkinUrl = `${protocol}://${host}/api/visit/checkin/${id}`;
     const qrDataUrl = await QRCode.toDataURL(checkinUrl);
 
     // 4. Send email with QR code

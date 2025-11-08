@@ -256,15 +256,83 @@ const Reports = ({ userPermissions }) => {
     }
   };
 
+  const deleteAllReports = async () => {
+    try {
+      console.log('Deleting all reports...');
+      
+      // Close confirmation modal first
+      setConfirmationModal({
+        show: false,
+        title: '',
+        message: '',
+        onConfirm: null,
+        reportId: null
+      });
+      
+      const response = await api.delete('/api/reports/delete-all');
+      
+      if (response.data.success) {
+        console.log('All reports deleted successfully');
+        
+        // Clear all reports from local state
+        setReports([]);
+        
+        // Close any open modals
+        setShowReportModal(false);
+        setGeneratedReport(null);
+        setPreviewData(null);
+        
+        // Reset pagination
+        setReportsPage(1);
+        
+        // Show success notification
+        setNotification({
+          show: true,
+          type: 'success',
+          title: 'All Reports Deleted Successfully!',
+          message: `All ${totalReports} reports and their associated files have been permanently removed.`,
+          description: 'This action cannot be undone. You can now generate new reports.'
+        });
+        
+        setError(''); // Clear any errors
+      } else {
+        throw new Error(response.data.message || 'Failed to delete all reports');
+      }
+    } catch (error) {
+      console.error('Error deleting all reports:', error);
+      
+      // Show error notification
+      setNotification({
+        show: true,
+        type: 'error',
+        title: 'Delete All Failed',
+        message: 'Failed to delete all reports. Please try again.',
+        description: error.response?.data?.message || error.message
+      });
+      
+      setError('Failed to delete all reports: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
   const previewReport = async (reportId, format = 'pdf') => {
     try {
       console.log('🔍 Preview button clicked:', { reportId, format });
+      
+      // Clear previous preview data and revoke old blob URL to prevent showing wrong report
+      if (previewData) {
+        console.log('🧹 Clearing previous preview data...');
+        URL.revokeObjectURL(previewData);
+        setPreviewData(null);
+      }
+      
       setPreviewLoading(true);
       setError(""); // Clear any previous errors
+      // Don't open modal - load directly in report details view
       
       console.log('📡 Making API request to:', `/api/reports/${reportId}/download?format=${format}`);
       const res = await api.get(`/api/reports/${reportId}/download?format=${format}`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 120000 // 2 minutes for large PDF downloads
       });
       
       console.log('✅ API response received:', { 
@@ -307,6 +375,8 @@ const Reports = ({ userPermissions }) => {
         errorMessage = 'Report not found or file not generated yet';
       } else if (err.response?.status === 401) {
         errorMessage = 'You are not authorized to view this report';
+      } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        errorMessage = 'Report download is taking longer than expected. The file may be large. Please try again or download directly.';
       } else if (err.message.includes('No file data')) {
         errorMessage = 'File is empty or not properly generated';
       } else {
@@ -339,11 +409,11 @@ const Reports = ({ userPermissions }) => {
           description: 'The report modal will open automatically with a preview.'
         });
         
-        // Automatically load PDF preview after modal opens
+        // Automatically load PDF preview in the report details view (not modal)
         setTimeout(() => {
           console.log('Auto-loading PDF preview for report:', reportData.id);
           previewReport(reportData.id, 'pdf');
-        }, 1000);
+        }, 500); // Reduced delay for faster loading
         
         console.log('Report set successfully');
       } else {
@@ -710,7 +780,9 @@ const Reports = ({ userPermissions }) => {
                               Report Period:
                           </span>
                             <span className="text-[#351E10] font-bold text-sm">
-                            {new Date(generatedReport.start_date).toLocaleDateString()}
+                            {generatedReport.end_date && generatedReport.end_date !== generatedReport.start_date
+                              ? `${new Date(generatedReport.start_date).toLocaleDateString()} - ${new Date(generatedReport.end_date).toLocaleDateString()}`
+                              : new Date(generatedReport.start_date).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
@@ -840,69 +912,7 @@ const Reports = ({ userPermissions }) => {
         </div>
       )}
 
-      {/* Preview Modal */}
-      {showPreviewModal && previewData && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col animate-slideUp">
-            {/* Preview Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-[#351E10] to-[#2A1A0D] text-white rounded-t-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <i className="fa-solid fa-file-pdf text-white text-xl"></i>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold font-playfair">PDF Preview</h3>
-                  <p className="text-sm text-white/80">
-                    {generatedReport?.title || 'Report'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => downloadReport(generatedReport.id, previewFormat)}
-                  className="bg-[#E5B80B] hover:bg-[#D4AF37] text-white px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 hover:scale-105"
-                >
-                  <i className="fa-solid fa-download"></i>
-                  Download
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPreviewModal(false);
-                    URL.revokeObjectURL(previewData);
-                    setPreviewData(null);
-                  }}
-                  className="text-white/80 hover:text-white transition-all duration-200 p-2 rounded-lg hover:bg-white/10"
-                >
-                  <i className="fa-solid fa-times text-xl"></i>
-                </button>
-              </div>
-            </div>
-
-            {/* Preview Content */}
-            <div className="flex-1 overflow-hidden">
-              {previewLoading ? (
-                <div className="flex items-center justify-center h-96">
-                  <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-[#E5B80B] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-lg font-semibold text-[#351E10]">Loading preview...</p>
-                    <p className="text-sm text-gray-600">Please wait while we prepare your file</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full">
-                  <iframe
-                    src={previewData}
-                    className="w-full h-full border-0"
-                    title="PDF Preview"
-                    onLoad={() => console.log('✅ Preview iframe loaded successfully')}
-                    onError={(e) => console.error('❌ Preview iframe failed to load:', e)}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Preview Modal - Removed: PDF now loads directly in report details view */}
 
       {/* Error Display */}
       {error && (
@@ -966,6 +976,11 @@ const Reports = ({ userPermissions }) => {
                     <div className="flex gap-1">
                       <button
                         onClick={() => {
+                          // Clear previous preview data when switching reports
+                          if (previewData) {
+                            URL.revokeObjectURL(previewData);
+                            setPreviewData(null);
+                          }
                           setGeneratedReport(report);
                           setShowReportModal(true);
                           // Automatically load PDF preview after modal opens
@@ -981,7 +996,17 @@ const Reports = ({ userPermissions }) => {
                       <button
                         onClick={() => {
                           console.log('🔍 Preview button clicked for report:', report);
-                          previewReport(report.id, 'pdf');
+                          // Clear previous preview data when switching reports
+                          if (previewData) {
+                            URL.revokeObjectURL(previewData);
+                            setPreviewData(null);
+                          }
+                          setGeneratedReport(report); // Set the report being previewed
+                          setShowReportModal(true); // Open report details modal
+                          // Automatically load PDF preview in report details view
+                          setTimeout(() => {
+                            previewReport(report.id, 'pdf');
+                          }, 500);
                         }}
                         className="text-green-600 hover:text-green-700 transition-colors p-1 rounded hover:bg-green-50"
                         title="Preview PDF"
@@ -1089,6 +1114,28 @@ const Reports = ({ userPermissions }) => {
                 <div className="text-xs text-gray-500">
                   Page {reportsPage} of {totalPages}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete All Reports Button */}
+          {reports.length > 0 && (
+            <div className="border-t border-gray-200 bg-red-50 px-3 py-3">
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={() => setConfirmationModal({
+                    show: true,
+                    title: 'Delete All Reports',
+                    message: `Are you sure you want to delete ALL ${totalReports} reports? This action cannot be undone and will permanently remove all reports from the system.`,
+                    onConfirm: () => deleteAllReports(),
+                    reportId: 'all'
+                  })}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 hover:scale-105 shadow-lg"
+                  title="Delete All Reports"
+                >
+                  <i className="fa-solid fa-trash-can text-sm"></i>
+                  Delete All Reports ({totalReports})
+                </button>
               </div>
             </div>
           )}

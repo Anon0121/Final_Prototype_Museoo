@@ -137,6 +137,24 @@ router.put('/:visitorId', async (req, res) => {
       [firstName, lastName, gender, address, visitorType, institution, purpose, visitorId]
     );
     
+    // AUTOMATICALLY UPDATE ALL ADDITIONAL VISITORS in the same booking with institution and purpose
+    // This ensures even if leader completes last, all visitors get the updated institution/purpose
+    // IMPORTANT: Only updates visitors in the SAME booking (filtered by booking_id)
+    console.log(`🔄 Updating institution and purpose for all additional visitors in booking ${visitor.booking_id}`);
+    
+    // Update all additional visitors in visitors table - ONLY in the same booking
+    // Filters by: booking_id (same booking), is_main_visitor = false (additional visitors only), visitor_id != leader
+    const [updatedVisitors] = await connection.query(
+      `UPDATE visitors SET 
+        institution = ?, 
+        purpose = ?
+       WHERE booking_id = ? 
+       AND is_main_visitor = false 
+       AND visitor_id != ?`,
+      [institution, purpose, visitor.booking_id, visitorId]
+    );
+    console.log(`✅ Updated ${updatedVisitors.affectedRows} additional visitor records in visitors table`);
+    
     // Generate QR code with visitor details
     const qrData = {
       type: 'walkin_visitor',
@@ -171,14 +189,38 @@ router.put('/:visitorId', async (req, res) => {
      // Send emails to each additional visitor
      for (const additionalVisitor of additionalVisitors) {
        try {
-         // Create form link for additional visitor
-         const memberFormUrl = `http://localhost:5173/group-walkin-visitor?token=${additionalVisitor.token_id}`;
+         // Find visitor record by email and booking_id (same as how leader backup code works)
+         const [visitorRecord] = await connection.query(
+           `SELECT visitor_id, backup_code FROM visitors 
+            WHERE email = ? AND booking_id = ? AND is_main_visitor = false`,
+           [additionalVisitor.email, visitor.booking_id]
+         );
          
-          // Generate QR code and backup code for additional visitor (but don't send in first email)
-          const shortBackupCode = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4-letter backup code
+         if (visitorRecord.length === 0) {
+           console.log(`⚠️ No visitor record found for ${additionalVisitor.email}, skipping...`);
+           continue;
+         }
+         
+         const visitorIdForAdditional = visitorRecord[0].visitor_id;
+         
+         // Create form link for additional visitor - use configurable frontend URL
+         const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+         const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+         const memberFormUrl = `${frontendProtocol}://${frontendHost}/group-walkin-visitor?token=${additionalVisitor.token_id}`;
+         
+          // Generate QR code and backup code for additional visitor
+          // Preserve existing backup code if it exists (like leader), otherwise generate new random one
+          const existingBackupCode = visitorRecord[0].backup_code;
+          console.log(`🔍 Existing backup_code for ${additionalVisitor.email}:`, existingBackupCode);
+          const shortBackupCode = (existingBackupCode && existingBackupCode.trim() !== '') 
+            ? existingBackupCode.trim().toUpperCase() 
+            : Math.random().toString(36).substring(2, 6).toUpperCase();
+          console.log(`✅ Using backup code: "${shortBackupCode}" for additional visitor ${visitorIdForAdditional}`);
+          
           const additionalQrData = {
             type: 'walkin_visitor',
             visitorId: shortBackupCode, // Use short backup code as visitorId
+            backupCode: shortBackupCode, // Also include as backupCode in QR data
             bookingId: visitor.booking_id,
             email: additionalVisitor.email,
             visitDate: visitor.visit_date,
@@ -191,11 +233,20 @@ router.put('/:visitorId', async (req, res) => {
           const additionalQrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(additionalQrData));
           const additionalBase64Data = additionalQrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
           
-          // Store QR code in database (backup code is embedded in QR code as visitorId)
+          // Store QR code AND backup code in database (same as leader)
           await connection.query(
-            `UPDATE visitors SET qr_code = ? WHERE visitor_id = ?`,
-            [additionalBase64Data, additionalVisitor.visitor_id]
+            `UPDATE visitors SET qr_code = ?, backup_code = ? WHERE visitor_id = ?`,
+            [additionalBase64Data, shortBackupCode, visitorIdForAdditional]
           );
+          
+          // Link visitor_id to additional_visitors table (so we can find it later)
+          await connection.query(
+            `UPDATE additional_visitors SET visitor_id = ? WHERE token_id = ?`,
+            [visitorIdForAdditional, additionalVisitor.token_id]
+          );
+          
+          console.log(`✅ Stored backup code "${shortBackupCode}" for additional visitor ${visitorIdForAdditional} (email: ${additionalVisitor.email})`);
+          console.log(`✅ Linked visitor_id ${visitorIdForAdditional} to additional_visitors token ${additionalVisitor.token_id}`);
           
           // Create email content for additional visitor
           const additionalVisitorEmailHtml = `
@@ -475,13 +526,8 @@ router.put('/:visitorId', async (req, res) => {
             }]
           });
           
-          // Store QR code and backup code in database
-          await connection.query(
-            `UPDATE visitors SET qr_code = ?, backup_code = ? WHERE visitor_id = ?`,
-            [additionalBase64Data, shortBackupCode, additionalVisitor.visitor_id]
-          );
-         
-         console.log(`✅ Email sent to additional visitor: ${additionalVisitor.email}`);
+          // Backup code already stored above, no need to store again
+         console.log(`✅ Email sent to additional visitor: ${additionalVisitor.email} with backup code: ${shortBackupCode}`);
        } catch (err) {
          console.error(`❌ Error sending email to additional visitor ${additionalVisitor.email}:`, err);
        }
@@ -687,6 +733,77 @@ router.post('/:visitorId/checkin', async (req, res) => {
         success: false,
         error: 'This QR code has already been used and cannot be scanned again.',
         qrUsed: true
+      });
+    }
+    
+    // STEP: Check if visitor has completed their details - REQUIRED before check-in
+    console.log('📋 Checking group walk-in leader completion status...');
+    console.log('📋 Visitor fields:', {
+      first_name: visitor.first_name,
+      last_name: visitor.last_name,
+      email: visitor.email,
+      gender: visitor.gender
+    });
+    
+    // Check for placeholder/default values that indicate incomplete information
+    const firstName = (visitor.first_name || '').trim();
+    const lastName = (visitor.last_name || '').trim();
+    const email = (visitor.email || '').trim();
+    const gender = (visitor.gender || '').trim();
+    
+      // Check if name is a placeholder (like "Walk-in Visitor", "Visitor", "Group Leader", etc.)
+      const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+      const isPlaceholderName = fullName === 'walk-in visitor' || 
+                                fullName === 'visitor' ||
+                                fullName === 'group leader' ||
+                                fullName === 'group visitor' ||
+                                firstName.toLowerCase() === 'walk-in visitor' ||
+                                firstName.toLowerCase() === 'visitor' ||
+                                firstName.toLowerCase() === 'walk-in' ||
+                                firstName.toLowerCase() === 'group' ||
+                                lastName.toLowerCase() === 'visitor' ||
+                                lastName.toLowerCase() === 'leader' ||
+                                (firstName === '' && lastName === '') ||
+                                (firstName.toLowerCase() === 'walk-in' && lastName.toLowerCase() === 'visitor') ||
+                                (firstName.toLowerCase() === 'group' && lastName.toLowerCase() === 'leader');
+      
+      const hasRequiredFields = firstName !== '' && 
+                                lastName !== '' && 
+                                email !== '' &&
+                                !isPlaceholderName;
+      
+      // Group walk-in leaders need all fields including gender
+      const hasAllRequiredInfo = hasRequiredFields && gender !== '';
+      
+      console.log('📋 Has all required info:', hasAllRequiredInfo);
+      console.log('📋 Is placeholder name:', isPlaceholderName);
+      console.log('📋 Field values:', { firstName, lastName, email, gender });
+      
+      if (!hasAllRequiredInfo) {
+        const missingFields = [];
+        // Check each field individually - only add if it's actually missing
+        // For name fields, check if they're empty OR if the full name is a placeholder
+        if (isPlaceholderName || !firstName || firstName.trim() === '') {
+          missingFields.push('first_name');
+        }
+        if (isPlaceholderName || !lastName || lastName.trim() === '') {
+          missingFields.push('last_name');
+        }
+        if (!email || email.trim() === '') {
+          missingFields.push('email');
+        }
+        if (!gender || gender.trim() === '') {
+          missingFields.push('gender');
+        }
+      
+      console.log('❌ Missing required fields:', missingFields);
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Please complete your visitor information first before you can use the backup code to check in.',
+        status: 'incomplete',
+        message: 'You must fill out all required fields in your visitor form before checking in.',
+        missingFields: missingFields
       });
     }
     

@@ -301,8 +301,10 @@ router.put('/:tokenId', async (req, res) => {
           const additionalQrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(additionalQrData));
           const additionalBase64Data = additionalQrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
           
-          // Create simplified form link for additional visitors
-          const additionalFormUrl = `http://localhost:5173/additional-visitor?token=${additionalVisitor.token_id}`;
+                  // Create simplified form link for additional visitors - use configurable frontend URL
+        const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+        const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+        const additionalFormUrl = `${frontendProtocol}://${frontendHost}/additional-visitor?token=${additionalVisitor.token_id}`;
           
           const additionalVisitorEmailHtml = `
 <!DOCTYPE html>
@@ -507,7 +509,7 @@ router.put('/:tokenId', async (req, res) => {
             <div class="details-section">
                 <h4>📝 Complete Your Details</h4>
                 <p>Please click the link below to provide your basic details (name, gender, address). Institution and purpose are already set by your group leader.</p>
-                <a href="${additionalFormUrl}" class="details-button">Complete My Details</a>
+                <a href="${additionalFormUrl}" class="details-button" style="display: inline-block; background: #8B6B21; color: white !important; padding: 8px 16px; text-decoration: none; border-radius: 5px; font-size: 14px; font-weight: bold;">Complete My Details</a>
             </div>
             
             <div class="important-notice">
@@ -627,6 +629,69 @@ router.post('/:visitorId/checkin', async (req, res) => {
         success: false,
         error: 'This walk-in visitor has already been checked in.',
         status: visitor.status
+      });
+    }
+    
+    // STEP: Check if visitor has completed their details - REQUIRED before check-in
+    console.log('📋 Checking walk-in visitor completion status...');
+    console.log('📋 Visitor fields:', {
+      first_name: visitor.first_name,
+      last_name: visitor.last_name,
+      email: visitor.email,
+      gender: visitor.gender,
+      is_main_visitor: visitor.is_main_visitor
+    });
+    
+    // Check for placeholder/default values that indicate incomplete information
+    const firstName = (visitor.first_name || '').trim();
+    const lastName = (visitor.last_name || '').trim();
+    const email = (visitor.email || '').trim();
+    const gender = (visitor.gender || '').trim();
+    
+    // Check if name is a placeholder (like "Walk-in Visitor", "Visitor", etc.)
+    // Handle cases where it might be "Walk-in" + "Visitor" or "Walk-in Visitor" + ""
+    const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+    const isPlaceholderName = fullName === 'walk-in visitor' || 
+                              fullName === 'visitor' ||
+                              firstName.toLowerCase() === 'walk-in visitor' ||
+                              firstName.toLowerCase() === 'visitor' ||
+                              firstName.toLowerCase() === 'walk-in' ||
+                              lastName.toLowerCase() === 'visitor' ||
+                              (firstName === '' && lastName === '') ||
+                              (firstName.toLowerCase() === 'walk-in' && lastName.toLowerCase() === 'visitor');
+    
+    const hasRequiredFields = firstName !== '' && 
+                              lastName !== '' && 
+                              email !== '' &&
+                              !isPlaceholderName;
+    
+    console.log('📋 Has required fields (name + email):', hasRequiredFields);
+    console.log('📋 Is placeholder name:', isPlaceholderName);
+    
+    // For individual walk-in visitors, check all required fields including gender
+    const isMainVisitor = visitor.is_main_visitor === 1 || visitor.is_main_visitor === true;
+    console.log('📋 Is main visitor:', isMainVisitor);
+    
+    // For individual walk-in, they should have all fields completed with real values
+    const hasAllRequiredInfo = hasRequiredFields && gender !== '';
+    
+    console.log('📋 Has all required info:', hasAllRequiredInfo);
+    
+    if (!hasAllRequiredInfo) {
+      const missingFields = [];
+      if (!firstName || isPlaceholderName) missingFields.push('first_name');
+      if (!lastName || isPlaceholderName) missingFields.push('last_name');
+      if (!email) missingFields.push('email');
+      if (!gender) missingFields.push('gender');
+      
+      console.log('❌ Missing required fields:', missingFields);
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Please complete your visitor information first before you can use the backup code to check in.',
+        status: 'incomplete',
+        message: 'You must fill out all required fields in your visitor form before checking in.',
+        missingFields: missingFields
       });
     }
     

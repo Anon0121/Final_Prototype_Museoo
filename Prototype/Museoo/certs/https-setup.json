@@ -1,0 +1,35 @@
+{
+  "title": "🔒 Setup Trusted HTTPS (No Security Warnings)",
+  "methods": [
+    {
+      "name": "Method 1: mkcert (Recommended)",
+      "steps": [
+        "1. Download mkcert: https://github.com/FiloSottile/mkcert/releases",
+        "2. Install mkcert: mkcert -install",
+        "3. Generate certificates: mkcert localhost 192.168.1.9 127.0.0.1",
+        "4. Move certificates to certs/ folder",
+        "5. Restart server"
+      ],
+      "result": "✅ No security warnings, fully trusted certificates"
+    },
+    {
+      "name": "Method 2: Use HTTP with Manual Input",
+      "steps": [
+        "1. Keep current HTTP setup",
+        "2. Use manual QR code input instead of camera",
+        "3. All other features work normally"
+      ],
+      "result": "✅ Simple setup, manual input for QR codes"
+    },
+    {
+      "name": "Method 3: Production Deployment",
+      "steps": [
+        "1. Deploy to Vercel/Netlify",
+        "2. Get real SSL certificates",
+        "3. Use production domain"
+      ],
+      "result": "✅ Professional setup with real certificates"
+    }
+  ],
+  "current": "Using HTTP - secure for local network, manual input for camera"
+}

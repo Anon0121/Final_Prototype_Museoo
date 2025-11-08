@@ -13,6 +13,7 @@ const EventRegistration = ({ exhibit, onClose, onRegistrationSuccess, onShowNoti
   const [error, setError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(true);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -142,10 +143,87 @@ const EventRegistration = ({ exhibit, onClose, onRegistrationSuccess, onShowNoti
     onClose(); // Close the registration form as well
   };
 
+  const handleConsentAgree = () => {
+    setShowConsentModal(false);
+  };
+
+  const handleConsentDecline = () => {
+    onClose();
+  };
+
   return (
     <>
+      {/* Consent Modal */}
+      {showConsentModal && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center px-4 py-6 bg-black/60 backdrop-blur-sm">
+          <div className="max-w-3xl w-full bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#351E10] via-[#5C3A18] to-[#8B6B21] px-6 py-5 sm:px-8 sm:py-6">
+              <div className="flex items-start space-x-4">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/15 border border-white/25 shadow-lg shadow-black/30 flex items-center justify-center text-white">
+                  <i className="fa-solid fa-file-signature text-2xl sm:text-3xl"></i>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm sm:text-base uppercase tracking-[0.2em] text-white/70" style={{fontFamily: 'Telegraf, sans-serif'}}>Participation Consent</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white" style={{fontFamily: 'Telegraf, sans-serif'}}>Before You Register</h2>
+                  <p className="text-white/80 text-sm sm:text-base leading-relaxed" style={{fontFamily: 'Lora, serif'}}>
+                    To protect your privacy and ensure a respectful museum experience, please review and accept our data handling practices and attendee guidelines.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 sm:px-8 sm:py-6 space-y-4 text-sm sm:text-base text-gray-700" style={{fontFamily: 'Lora, serif'}}>
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#E5B80B]/20 flex items-center justify-center text-[#8B6B21]">
+                  <i className="fa-solid fa-database text-sm"></i>
+                </div>
+                <p>
+                  The City Museum of Cagayan de Oro collects your information to manage attendance, coordinate communications, and maintain safety compliance. Data is stored securely in accordance with the Data Privacy Act of 2012.
+                </p>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#E5B80B]/20 flex items-center justify-center text-[#8B6B21]">
+                  <i className="fa-solid fa-users text-sm"></i>
+                </div>
+                <p>
+                  You agree to observe museum etiquette, arrive on time, and notify us if you can no longer attend so we can offer your slot to other guests.
+                </p>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#E5B80B]/20 flex items-center justify-center text-[#8B6B21]">
+                  <i className="fa-solid fa-envelope-circle-check text-sm"></i>
+                </div>
+                <p>
+                  By proceeding, you consent to receiving necessary event updates or advisories through the email address you provide.
+                </p>
+              </div>
+              <p className="font-semibold text-[#351E10]" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Do you agree to these terms and to the collection and processing of your personal information for event participation?
+              </p>
+            </div>
+
+            <div className="px-6 py-5 sm:px-8 sm:py-6 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <button
+                onClick={handleConsentDecline}
+                className="w-full sm:w-1/2 px-4 py-3 rounded-xl font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-all duration-200"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                I Decline
+              </button>
+              <button
+                onClick={handleConsentAgree}
+                className="w-full sm:w-1/2 px-4 py-3 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg hover:shadow-xl"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                I Agree & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Registration Form Modal */}
-      <div className="fixed inset-0 flex items-center justify-center z-[99999] p-4">
+      <div className={`fixed inset-0 flex items-center justify-center z-[99999] p-4 transition-opacity duration-300 ${showConsentModal ? 'pointer-events-none select-none opacity-40' : 'opacity-100'}`}>
         {/* Blurred Background */}
         <div 
           className="absolute inset-0"

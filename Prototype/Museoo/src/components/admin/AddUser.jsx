@@ -499,7 +499,14 @@ const AddUser = () => {
       
       if (res.data.success && res.data.permissions && Object.keys(res.data.permissions).length > 0) {
         console.log("✅ Loading saved permissions from database:", res.data.permissions);
-        setUserPermissions(res.data.permissions);
+        // Normalize permissions structure
+        const normalizedPermissions = {};
+        Object.entries(res.data.permissions).forEach(([key, value]) => {
+          normalizedPermissions[key] = {
+            allowed: value.allowed !== undefined ? value.allowed : (value.permission_level !== 'none')
+          };
+        });
+        setUserPermissions(normalizedPermissions);
       } else {
         console.log("⚠️ No saved permissions found, using defaults");
       }

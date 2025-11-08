@@ -5,10 +5,18 @@ const fs = require('fs');
 // Function to convert logo images to base64
 function getBase64Logo(filename) {
   try {
+    // Use the same path structure as the working visitor PDF generator
     const logoPath = path.join(__dirname, '../../Museoo/src/assets', filename);
+    
+    console.log(`🔍 Debug: Loading logo: ${filename} from ${logoPath}`);
     if (fs.existsSync(logoPath)) {
       const logoBuffer = fs.readFileSync(logoPath);
-      return logoBuffer.toString('base64');
+      const base64 = logoBuffer.toString('base64');
+      console.log(`✅ Logo ${filename} loaded, base64 length: ${base64.length}`);
+      console.log(`🔍 Debug: First 50 chars: ${base64.substring(0, 50)}`);
+      return base64;
+    } else {
+      console.log(`❌ Logo file not found: ${logoPath}`);
     }
   } catch (error) {
     console.error(`Error reading logo ${filename}:`, error);
@@ -37,7 +45,7 @@ function generateEventListReport(report) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Event List Report - City Museum of Cagayan de Oro</title>
+    <title>Event List Report - Cagayan de Oro City Museum</title>
     <style>
         * {
             margin: 0;
@@ -57,7 +65,7 @@ function generateEventListReport(report) {
         .header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 30px;
             padding: 0;
         }
@@ -65,6 +73,7 @@ function generateEventListReport(report) {
         .seal {
             width: 80px;
             height: 80px;
+            flex-shrink: 0;
         }
         
         .seal img {
@@ -95,6 +104,7 @@ function generateEventListReport(report) {
         .city-logo {
             width: 80px;
             height: 80px;
+            flex-shrink: 0;
         }
         
         .city-logo img {
@@ -105,47 +115,17 @@ function generateEventListReport(report) {
         
         .report-title {
             text-align: center;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             color: #000;
-            margin: 20px 0;
+            margin: 30px 0;
         }
         
-        .section-title {
-            text-align: center;
+        .total-events {
+            text-align: right;
             font-size: 14px;
-            font-weight: bold;
-            color: #000;
             margin-bottom: 20px;
-        }
-        
-        .summary-box {
-            border: 1px solid #000;
-            padding: 15px;
-            margin-bottom: 20px;
-            background: #fff;
-        }
-        
-        .summary-stats {
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-        
-        .stat-item {
-            flex: 1;
-        }
-        
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
             color: #000;
-        }
-        
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
         }
         
         .events-table {
@@ -188,7 +168,7 @@ function generateEventListReport(report) {
             <img src="data:image/png;base64,${getBase64Logo('logo.png')}" alt="City Seal" />
         </div>
         <div class="museum-info">
-            <div class="museum-name">City Museum of Cagayan de Oro</div>
+            <div class="museum-name">Cagayan de Oro City Museum</div>
             <div class="museum-address">
                 Fernandez-Rizal Streets, Barangay 1, Old Water Tower/Tank,<br>
                 near Gaston Park, Cagayan de Oro, Philippines
@@ -200,56 +180,30 @@ function generateEventListReport(report) {
     </div>
 
     <div class="report-title">Event List Report</div>
-    
-    <div class="section-title">List of Events</div>
 
-    <div class="summary-box">
-        <div class="summary-stats">
-            <div class="stat-item">
-                <div class="stat-number">${totalEvents}</div>
-                <div class="stat-label">Total Events</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">${events.reduce((sum, event) => sum + (event.visitor_count || 0), 0)}</div>
-                <div class="stat-label">Total Participants</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">${events.length > 0 ? (events.reduce((sum, event) => sum + (event.visitor_count || 0), 0) / events.length).toFixed(1) : 0}</div>
-                <div class="stat-label">Avg Participants</div>
-            </div>
-        </div>
-    </div>
+    <div class="total-events">Total Events: ${totalEvents}</div>
 
     <table class="events-table">
         <thead>
             <tr>
-                <th>Event Title</th>
-                <th>Date</th>
-                <th>Time</th>
+                <th>Event Name</th>
                 <th>Location</th>
-                <th>Organizer</th>
-                <th>Participants</th>
-                <th>Capacity</th>
+                <th>Total Slot</th>
+                <th>Date and Time</th>
             </tr>
         </thead>
         <tbody>
             ${events.map(event => `
                 <tr>
-                    <td>${event.title || 'Untitled Event'}</td>
-                    <td>${event.start_date ? new Date(event.start_date).toLocaleDateString() : 'N/A'}</td>
-                    <td>${event.time || 'N/A'}</td>
+                    <td>${event.title || 'N/A'}</td>
                     <td>${event.location || 'N/A'}</td>
-                    <td>${event.organizer || 'N/A'}</td>
-                    <td>${event.visitor_count || 0}</td>
-                    <td>${event.max_capacity || 'N/A'}</td>
+                    <td>${event.max_capacity || 0}</td>
+                    <td>${event.start_date ? new Date(event.start_date).toLocaleDateString() : 'N/A'} ${event.time ? event.time : ''}</td>
                 </tr>
             `).join('')}
         </tbody>
     </table>
 
-    <div class="footer">
-        <p>Generated on ${new Date().toLocaleDateString()} | Event List Report</p>
-    </div>
 </body>
 </html>`;
 
@@ -269,16 +223,16 @@ function generateEventParticipantsReport(report) {
     }
   }
 
-  const events = reportData.events || [];
-  const registrations = reportData.registrations || [];
-  const totalParticipants = registrations.length;
+  const participants = reportData.participants || [];
+  const totalParticipants = participants.length;
+  const eventInfo = reportData.event || {};
 
   const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Event Participants Report - City Museum of Cagayan de Oro</title>
+    <title>Participant List - Cagayan de Oro City Museum</title>
     <style>
         * {
             margin: 0;
@@ -298,7 +252,7 @@ function generateEventParticipantsReport(report) {
         .header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 30px;
             padding: 0;
         }
@@ -306,6 +260,7 @@ function generateEventParticipantsReport(report) {
         .seal {
             width: 80px;
             height: 80px;
+            flex-shrink: 0;
         }
         
         .seal img {
@@ -336,6 +291,7 @@ function generateEventParticipantsReport(report) {
         .city-logo {
             width: 80px;
             height: 80px;
+            flex-shrink: 0;
         }
         
         .city-logo img {
@@ -346,47 +302,30 @@ function generateEventParticipantsReport(report) {
         
         .report-title {
             text-align: center;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             color: #000;
-            margin: 20px 0;
+            margin: 30px 0;
         }
         
-        .section-title {
-            text-align: center;
+        .total-participants {
+            text-align: right;
             font-size: 14px;
-            font-weight: bold;
-            color: #000;
             margin-bottom: 20px;
-        }
-        
-        .summary-box {
-            border: 1px solid #000;
-            padding: 15px;
-            margin-bottom: 20px;
-            background: #fff;
-        }
-        
-        .summary-stats {
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-        
-        .stat-item {
-            flex: 1;
-        }
-        
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
             color: #000;
         }
         
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
+        .event-details {
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .event-details div {
+            margin-bottom: 8px;
+        }
+        
+        .event-details strong {
+            font-weight: bold;
         }
         
         .participants-table {
@@ -412,15 +351,6 @@ function generateEventParticipantsReport(report) {
         .participants-table td {
             text-align: left;
         }
-        
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #ccc;
-            font-size: 12px;
-            color: #666;
-        }
     </style>
 </head>
 <body>
@@ -429,7 +359,7 @@ function generateEventParticipantsReport(report) {
             <img src="data:image/png;base64,${getBase64Logo('logo.png')}" alt="City Seal" />
         </div>
         <div class="museum-info">
-            <div class="museum-name">City Museum of Cagayan de Oro</div>
+            <div class="museum-name">Cagayan de Oro City Museum</div>
             <div class="museum-address">
                 Fernandez-Rizal Streets, Barangay 1, Old Water Tower/Tank,<br>
                 near Gaston Park, Cagayan de Oro, Philippines
@@ -440,108 +370,37 @@ function generateEventParticipantsReport(report) {
         </div>
     </div>
 
-    <div class="report-title">Event Participants Report</div>
-    
-    <div class="section-title">List of Event Participants</div>
+    <div class="report-title">Participant List</div>
 
-    <div class="summary-box">
-        <div class="summary-stats">
-            <div class="stat-item">
-                <div class="stat-number">${totalParticipants}</div>
-                <div class="stat-label">Total Participants</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">${events.length}</div>
-                <div class="stat-label">Total Events</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">${events.length > 0 ? (totalParticipants / events.length).toFixed(1) : 0}</div>
-                <div class="stat-label">Avg per Event</div>
-            </div>
-        </div>
+    <div class="total-participants">Total Participant: ${totalParticipants}</div>
+
+    <div class="event-details">
+        <div><strong>Event Name:</strong> ${eventInfo.title || 'N/A'}</div>
+        <div><strong>Location:</strong> ${eventInfo.location || 'N/A'}</div>
+        <div><strong>Date and Time:</strong> ${eventInfo.start_date ? new Date(eventInfo.start_date).toLocaleDateString() : 'N/A'} ${eventInfo.time ? eventInfo.time : ''}</div>
     </div>
 
     <table class="participants-table">
         <thead>
             <tr>
                 <th>Participant Name</th>
-                <th>Event Title</th>
-                <th>Event Date</th>
-                <th>Registration Type</th>
-                <th>Status</th>
-                <th>Contact</th>
+                <th>Gender</th>
+                <th>Email</th>
+                <th>Visitor type</th>
             </tr>
         </thead>
         <tbody>
-            ${(() => {
-                if (registrations.length > 0) {
-                    return registrations.map(registration => {
-                        const event = events.find(e => e.id === registration.activity_id);
-                        const eventDate = event?.start_date ? new Date(event.start_date).toLocaleDateString() : 'N/A';
-                        const registrationType = registration.registration_type || 'Online';
-                        const status = registration.status || 'Registered';
-                        const email = registration.email || 'N/A';
-                        const name = registration.name || 'Unknown Participant';
-                        
-                        return `
-                            <tr>
-                                <td>${name}</td>
-                                <td>${event?.title || 'Unknown Event'}</td>
-                                <td>${eventDate}</td>
-                                <td>${registrationType}</td>
-                                <td>${status}</td>
-                                <td>${email}</td>
-                            </tr>
-                        `;
-                    }).join('');
-                } else {
-                    // Show events with participant counts if no registration data
-                    return events.map(event => {
-                        const eventDate = event.start_date ? new Date(event.start_date).toLocaleDateString() : 'N/A';
-                        const participantCount = event.visitor_count || 0;
-                        
-                        if (participantCount === 0) {
-                            return `
-                                <tr>
-                                    <td>No participants</td>
-                                    <td>${event.title || 'Untitled Event'}</td>
-                                    <td>${eventDate}</td>
-                                    <td>N/A</td>
-                                    <td>No registrations</td>
-                                    <td>N/A</td>
-                                </tr>
-                            `;
-                        }
-                        
-                        // Generate participant entries based on count
-                        const participantEntries = [];
-                        for (let i = 1; i <= Math.min(participantCount, 10); i++) {
-                            const names = ['Maria Santos', 'Juan Dela Cruz', 'Ana Rodriguez', 'Carlos Mendoza', 'Lisa Garcia', 'Roberto Silva', 'Carmen Lopez', 'Miguel Torres', 'Elena Ramos', 'Diego Martinez'];
-                            const emails = ['maria@email.com', 'juan@email.com', 'ana@email.com', 'carlos@email.com', 'lisa@email.com', 'roberto@email.com', 'carmen@email.com', 'miguel@email.com', 'elena@email.com', 'diego@email.com'];
-                            const types = ['Online', 'Walk-in', 'Pre-registered'];
-                            
-                            participantEntries.push(`
-                                <tr>
-                                    <td>${names[i-1] || `Participant ${i}`}</td>
-                                    <td>${event.title || 'Untitled Event'}</td>
-                                    <td>${eventDate}</td>
-                                    <td>${types[i-1] || 'Online'}</td>
-                                    <td>Attended</td>
-                                    <td>${emails[i-1] || `participant${i}@email.com`}</td>
-                                </tr>
-                            `);
-                        }
-                        
-                        return participantEntries.join('');
-                    }).join('');
-                }
-            })()}
+            ${participants.map(participant => `
+                <tr>
+                    <td>${(participant.firstname || '') + ' ' + (participant.lastname || '') || 'N/A'}</td>
+                    <td>${participant.gender || 'N/A'}</td>
+                    <td>${participant.email || 'N/A'}</td>
+                    <td>${participant.visitor_type || 'N/A'}</td>
+                </tr>
+            `).join('')}
         </tbody>
     </table>
 
-    <div class="footer">
-        <p>Generated on ${new Date().toLocaleDateString()} | Event Participants Report</p>
-    </div>
 </body>
 </html>`;
 

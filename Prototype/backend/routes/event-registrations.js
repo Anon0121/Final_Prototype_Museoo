@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const QRCode = require('qrcode');
-const { sendEventApprovalEmail } = require('../services/emailService');
+const { sendEventApprovalEmail, sendEventRejectionEmail } = require('../services/emailService');
 
 // Helper function to update current_registrations count for an event
 const updateEventRegistrationCount = async (eventId) => {
@@ -156,7 +156,9 @@ router.get('/event/:eventId', async (req, res) => {
 // REGISTER FOR AN EVENT
 // ========================================
 router.post('/register', async (req, res) => {
+  const startTime = Date.now();
   try {
+    console.log('🔄 Registration endpoint hit at:', new Date().toISOString());
     const { 
       event_id, 
       firstname, 
@@ -167,31 +169,60 @@ router.post('/register', async (req, res) => {
     } = req.body;
 
     console.log('🔄 Registration request received:', { event_id, firstname, lastname, email, gender, visitor_type });
+    console.log('⏱️ Time elapsed: 0ms');
 
     // Validate required fields
     if (!event_id || !firstname || !lastname || !gender || !email || !visitor_type) {
       console.log('❌ Missing required fields');
+      console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms');
       return res.status(400).json({ 
         error: 'All fields are required' 
       });
     }
 
-    // Check if event exists and has capacity
-    const [event] = await db.query(`
-      SELECT a.id, a.title, ed.max_capacity, ed.current_registrations, ed.start_date, ed.time
-      FROM activities a
-      JOIN event_details ed ON a.id = ed.activity_id
-      WHERE a.id = ? AND a.type = 'event'
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Starting database queries');
+    
+    // Check if event exists and has capacity (split query to avoid JOIN hang)
+    // First check if activity exists
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Querying activities table...');
+    const [activity] = await db.query(`
+      SELECT id, title, type
+      FROM activities
+      WHERE id = ? AND type = 'event'
+      LIMIT 1
     `, [event_id]);
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Activities query completed');
 
-    if (event.length === 0) {
+    if (activity.length === 0) {
       console.log('❌ Event not found:', event_id);
       return res.status(404).json({ 
         error: 'Event not found' 
       });
     }
 
-    const eventData = event[0];
+    // Then get event details
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Querying event_details table...');
+    const [event] = await db.query(`
+      SELECT max_capacity, current_registrations, start_date, time, location
+      FROM event_details
+      WHERE activity_id = ?
+      LIMIT 1
+    `, [event_id]);
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Event details query completed');
+
+    if (event.length === 0) {
+      console.log('❌ Event details not found for event:', event_id);
+      return res.status(404).json({ 
+        error: 'Event details not found' 
+      });
+    }
+
+    // Combine activity and event data
+    const eventData = {
+      id: activity[0].id,
+      title: activity[0].title,
+      ...event[0]
+    };
     console.log('✅ Event found:', eventData.title);
 
     // Check if event is still accepting registrations (not ended)
@@ -216,67 +247,155 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if user is already registered
+    // Check if user is already registered (simplified query - no joins needed here)
+    // Check for ALL registrations (not just non-cancelled) to match database unique constraint
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Checking for existing registration...');
     const [existingRegistration] = await db.query(`
-      SELECT er.*, a.title as event_title, ed.start_date, ed.time, ed.location
-      FROM event_registrations er
-      JOIN activities a ON er.event_id = a.id
-      JOIN event_details ed ON a.id = ed.activity_id
-      WHERE er.event_id = ? AND er.email = ? AND er.status != 'cancelled'
+      SELECT id, event_id, email, status, approval_status
+      FROM event_registrations
+      WHERE event_id = ? AND email = ?
+      LIMIT 1
     `, [event_id, email]);
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Existing registration check completed');
 
     if (existingRegistration.length > 0) {
       console.log('❌ User already registered for this event');
-      return res.status(400).json({
-        success: false,
-        error: 'Email already registered!',
-        message: `This email (${email}) is already registered for "${existingRegistration[0].event_title}". Please use a different email address to register another participant.`,
-        details: {
-          registeredEmail: email,
-          eventTitle: existingRegistration[0].event_title,
-          registrationDate: existingRegistration[0].registration_date,
-          status: existingRegistration[0].approval_status
-        }
-      });
+      // If registration is cancelled, allow re-registration by deleting the old one
+      if (existingRegistration[0].status === 'cancelled') {
+        console.log('⚠️ Found cancelled registration, allowing re-registration by removing old entry');
+        await db.query(`
+          DELETE FROM event_registrations
+          WHERE id = ?
+        `, [existingRegistration[0].id]);
+        console.log('✅ Cancelled registration removed, proceeding with new registration');
+      } else {
+        // Use eventData.title we already fetched (no need for another query)
+        return res.status(400).json({
+          success: false,
+          error: 'Email already registered!',
+          message: `This email (${email}) is already registered for "${eventData.title}". Please use a different email address to register another participant.`,
+          details: {
+            registeredEmail: email,
+            eventTitle: eventData.title,
+            status: existingRegistration[0].status,
+            approval_status: existingRegistration[0].approval_status
+          }
+        });
+      }
     }
 
     console.log('✅ Creating new registration...');
+    console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Inserting registration...');
 
     // Insert registration with pending approval status (no QR code yet)
-    const [result] = await db.query(`
-      INSERT INTO event_registrations 
-      (event_id, firstname, lastname, gender, email, visitor_type, status, approval_status)
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', 'pending')
-    `, [event_id, firstname, lastname, gender, email, visitor_type]);
+    // Note: status enum values: 'pending_approval','registered','checked_in','cancelled'
+    // Add retry logic for connection issues
+    let result;
+    let retries = 3;
+    let lastError;
+    
+    while (retries > 0) {
+      try {
+        [result] = await db.query(`
+          INSERT INTO event_registrations 
+          (event_id, firstname, lastname, gender, email, visitor_type, status, approval_status)
+          VALUES (?, ?, ?, ?, ?, ?, 'pending_approval', 'pending')
+        `, [event_id, firstname, lastname, gender, email, visitor_type]);
+        
+        console.log('✅ Registration inserted with ID:', result.insertId);
+        console.log('⏱️ Time elapsed:', Date.now() - startTime, 'ms - Registration inserted');
+        break; // Success, exit retry loop
+      } catch (insertError) {
+        lastError = insertError;
+        
+        // Check if it's a duplicate entry error - handle gracefully
+        if (insertError.code === 'ER_DUP_ENTRY') {
+          console.log('❌ Duplicate registration detected during insert');
+          // Return existing registration info if available
+          const [existing] = await db.query(`
+            SELECT id, event_id, email, status, approval_status
+            FROM event_registrations
+            WHERE event_id = ? AND email = ?
+            LIMIT 1
+          `, [event_id, email]);
+          
+          return res.status(400).json({
+            success: false,
+            error: 'Email already registered!',
+            message: `This email (${email}) is already registered for "${eventData.title}". Please use a different email address to register another participant.`,
+            details: existing.length > 0 ? {
+              registeredEmail: email,
+              eventTitle: eventData.title,
+              status: existing[0].status,
+              approval_status: existing[0].approval_status
+            } : {
+              registeredEmail: email,
+              eventTitle: eventData.title
+            }
+          });
+        }
+        
+        retries--;
+        
+        // Check if it's a connection error that we should retry
+        if (insertError.code === 'ECONNRESET' || insertError.code === 'PROTOCOL_CONNECTION_LOST' || insertError.code === 'ETIMEDOUT') {
+          console.log(`⚠️ Connection error during insert, retries left: ${retries}`);
+          if (retries > 0) {
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 500));
+            continue;
+          }
+        }
+        // If not a connection error or no retries left, throw
+        throw insertError;
+      }
+    }
+    
+    if (!result) {
+      throw lastError || new Error('Failed to insert registration after retries');
+    }
 
-    console.log('✅ Registration inserted with ID:', result.insertId);
-
-    // Get the created registration
-    const [newRegistration] = await db.query(`
-      SELECT 
-        er.*,
-        a.title as event_title,
-        ed.start_date,
-        ed.time,
-        ed.location
-      FROM event_registrations er
-      JOIN activities a ON er.event_id = a.id
-      JOIN event_details ed ON a.id = ed.activity_id
-      WHERE er.id = ?
-    `, [result.insertId]);
+    // Return the registration data directly without another query (much faster)
+    const registration = {
+      id: result.insertId,
+      event_id: event_id,
+      firstname: firstname,
+      lastname: lastname,
+      email: email,
+      gender: gender,
+      visitor_type: visitor_type,
+      status: 'pending_approval',
+      approval_status: 'pending',
+      registration_date: new Date(),
+      event_title: eventData.title,
+      start_date: eventData.start_date,
+      time: eventData.time,
+      location: eventData.location
+    };
 
     console.log('✅ Sending success response');
+    console.log('⏱️ Total time elapsed:', Date.now() - startTime, 'ms');
     res.status(201).json({
       success: true,
       message: 'Registration submitted successfully! Your registration is pending approval. You will receive an email with your QR code once approved.',
-      registration: newRegistration[0]
+      registration: registration
     });
 
   } catch (error) {
     console.error('❌ Error registering for event:', error);
-    res.status(500).json({ 
-      error: 'Failed to register for event' 
-    });
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error sqlState:', error.sqlState);
+    console.error('⏱️ Time elapsed before error:', Date.now() - startTime, 'ms');
+    
+    // Make sure to send a response even on error
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to register for event',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
   }
 });
 
@@ -325,9 +444,10 @@ router.put('/:registrationId/approve', async (req, res) => {
     console.log('🔍 QR Code is data URL:', qrCode.startsWith('data:image/'));
 
     // Update registration to approved status
+    // Note: status enum values: 'pending_approval','registered','checked_in','cancelled'
     const [result] = await db.query(`
       UPDATE event_registrations 
-      SET status = 'pending',
+      SET status = 'registered',
           approval_status = 'approved',
           approval_date = NOW(),
           approved_by = ?,
@@ -413,9 +533,13 @@ router.put('/:registrationId/reject', async (req, res) => {
       });
     }
 
-    // Get the event_id before updating count
+    // Get the event details for email notification and update counts
     const [registration] = await db.query(`
-      SELECT event_id FROM event_registrations WHERE id = ?
+      SELECT er.event_id, er.firstname, er.lastname, er.email, a.title AS event_title, ed.start_date, ed.time, ed.location
+      FROM event_registrations er
+      JOIN activities a ON er.event_id = a.id
+      JOIN event_details ed ON a.id = ed.activity_id
+      WHERE er.id = ?
     `, [registrationId]);
 
     if (registration.length > 0) {
@@ -425,6 +549,22 @@ router.put('/:registrationId/reject', async (req, res) => {
       } catch (countError) {
         console.error('❌ Error updating registration count:', countError);
         // Don't fail the rejection if count update fails
+      }
+
+      // Attempt to send rejection email
+      try {
+        await sendEventRejectionEmail({
+          firstname: registration[0].firstname,
+          lastname: registration[0].lastname,
+          email: registration[0].email,
+          event_title: registration[0].event_title,
+          start_date: registration[0].start_date,
+          time: registration[0].time,
+          location: registration[0].location,
+          rejection_reason: rejection_reason || 'Registration rejected by admin'
+        });
+      } catch (emailErr) {
+        console.error('❌ Error sending participant rejection email:', emailErr);
       }
     }
 
@@ -796,15 +936,16 @@ router.post('/update-statuses', async (req, res) => {
         console.log(`❌ Auto-cancelled: ${registration.firstname} ${registration.lastname} - Event ended without check-in`);
         cancelledCount++;
       }
-      // If event hasn't ended and status is not pending, update to pending
-      else if (now <= eventEndTime && registration.status !== 'pending') {
+      // If event hasn't ended and status is not pending_approval (for pending approvals), keep as registered
+      // Note: This logic maintains approved registrations as 'registered' until check-in
+      else if (now <= eventEndTime && registration.status === 'pending_approval' && registration.approval_status === 'approved') {
         await db.query(`
           UPDATE event_registrations 
-          SET status = 'pending'
+          SET status = 'registered'
           WHERE id = ?
         `, [registration.id]);
         
-        console.log(`⏳ Auto-pending: ${registration.firstname} ${registration.lastname} - Event not ended yet`);
+        console.log(`⏳ Auto-updated to registered: ${registration.firstname} ${registration.lastname} - Event not ended yet`);
         updatedCount++;
       }
     }
@@ -869,10 +1010,10 @@ router.get('/event/:eventId', async (req, res) => {
           SET status = 'cancelled'
           WHERE id = ?
         `, [registration.id]);
-      } else if (registration.status !== 'pending') {
+      } else if (registration.status === 'pending_approval' && registration.approval_status === 'approved') {
         await db.query(`
           UPDATE event_registrations 
-          SET status = 'pending'
+          SET status = 'registered'
           WHERE id = ?
         `, [registration.id]);
       }

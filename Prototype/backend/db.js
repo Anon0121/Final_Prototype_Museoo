@@ -12,7 +12,14 @@ const pool = mysql.createPool({
   port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  // Valid mysql2 pool options
+  acquireTimeout: 60000, // Time to wait for a connection from the pool (in milliseconds)
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+  // Add query timeout to prevent early failures
+  connectTimeout: 60000, // Connection timeout in milliseconds
+  // Note: mysql2 doesn't support queryTimeout directly, but we can set it per query
 });
 
 // Test the connection

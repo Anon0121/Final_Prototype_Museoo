@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import api from "../../config/api";
 
 const AIChat = ({ onGenerateReport }) => {
@@ -35,8 +37,16 @@ const AIChat = ({ onGenerateReport }) => {
   const [waitingForEventListDateRange, setWaitingForEventListDateRange] = useState(false);
   const [waitingForEventListDateSelection, setWaitingForEventListDateSelection] = useState(false);
   const [waitingForDonationDateRange, setWaitingForDonationDateRange] = useState(false);
+  const [donationStartDate, setDonationStartDate] = useState(null);
+  const [donationEndDate, setDonationEndDate] = useState(null);
+  const [showEndDateBanner, setShowEndDateBanner] = useState(false);
+  const [selectedDonationType, setSelectedDonationType] = useState(null);
   const [waitingForCulturalObjectDateRange, setWaitingForCulturalObjectDateRange] = useState(false);
+  const [culturalObjectStartDate, setCulturalObjectStartDate] = useState(null);
+  const [culturalObjectEndDate, setCulturalObjectEndDate] = useState(null);
   const [waitingForArchiveDateRange, setWaitingForArchiveDateRange] = useState(false);
+  const [archiveStartDate, setArchiveStartDate] = useState(null);
+  const [archiveEndDate, setArchiveEndDate] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -155,26 +165,74 @@ const AIChat = ({ onGenerateReport }) => {
     setMessages(prev => [...prev, cancelMessage]);
   };
 
-  const generateReportWithDateRange = async (userRequest) => {
+  const generateReportWithDateRange = async (userRequest, donationType = null, customStartDate = null, customEndDate = null, explicitReportType = null) => {
     try {
       let dateRange = '';
+      let actualStartDate = null;
+      let actualEndDate = null;
       
-      if (reportType === 'all') {
+      // Use explicit reportType if provided (to avoid state timing issues), otherwise use state
+      const effectiveReportType = explicitReportType || reportType;
+      
+      // Use custom dates if provided, otherwise use state
+      const effectiveStartDate = customStartDate || startDate;
+      const effectiveEndDate = customEndDate || endDate;
+      
+      // Check if dates are actual date strings (not 'all', 'custom', '1month', etc.)
+      const isActualDateString = (dateStr) => {
+        if (!dateStr || dateStr === 'all' || dateStr === 'custom' || dateStr === '1month' || dateStr === 'null') {
+          return false;
+        }
+        // Check if it's a valid date string (YYYY-MM-DD format)
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        return dateRegex.test(dateStr);
+      };
+      
+      if (effectiveReportType === 'all' || (!effectiveStartDate && !effectiveEndDate)) {
         // No date range - include all data
         dateRange = 'for all available data';
-      } else if (reportType === '1month') {
+        actualStartDate = null;
+        actualEndDate = null;
+      } else if (effectiveReportType === '1month' || (effectiveStartDate === '1month' && effectiveEndDate === 'all')) {
         // Use this month (from 1st of current month to end of current month)
-        const today = new Date();
-        const start = new Date(today.getFullYear(), today.getMonth(), 1);
-        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month
-        dateRange = `from ${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]}`;
-      } else if (reportType === 'custom' && startDate && endDate) {
-        dateRange = `from ${startDate} to ${endDate}`;
+        // If dates are already calculated (from handleDonationDateRangeSelection), use them
+        if (isActualDateString(effectiveStartDate) && isActualDateString(effectiveEndDate)) {
+          actualStartDate = effectiveStartDate;
+          actualEndDate = effectiveEndDate;
+          dateRange = `from ${actualStartDate} to ${actualEndDate}`;
+          console.log('📅 Using pre-calculated this month dates:', actualStartDate, 'to', actualEndDate);
+        } else {
+          // Otherwise calculate them here
+          const today = new Date();
+          const start = new Date(today.getFullYear(), today.getMonth(), 1);
+          const end = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month
+          actualStartDate = start.toISOString().split('T')[0];
+          actualEndDate = end.toISOString().split('T')[0];
+          dateRange = `from ${actualStartDate} to ${actualEndDate}`;
+          console.log('📅 Calculated this month dates:', actualStartDate, 'to', actualEndDate);
+        }
+      } else if (isActualDateString(effectiveStartDate) && isActualDateString(effectiveEndDate)) {
+        // Custom date range with actual dates
+        actualStartDate = effectiveStartDate;
+        actualEndDate = effectiveEndDate;
+        dateRange = `from ${actualStartDate} to ${actualEndDate}`;
+        console.log('📅 Using custom date range:', actualStartDate, 'to', actualEndDate);
+      } else if (effectiveStartDate && effectiveEndDate && effectiveStartDate !== 'custom' && effectiveEndDate !== 'custom') {
+        // Fallback: treat as custom dates if they exist and aren't special strings
+        actualStartDate = effectiveStartDate;
+        actualEndDate = effectiveEndDate;
+        dateRange = `from ${actualStartDate} to ${actualEndDate}`;
       }
       
-      const requestWithDate = `${userRequest} ${dateRange}`;
-      console.log('📅 Generating report with date range:', dateRange);
-      return await generateReport(requestWithDate);
+      // Include donation type in the request text for proper detection
+      let requestWithDate = `${userRequest} ${dateRange}`;
+      if (donationType) {
+        requestWithDate = `${userRequest} ${donationType} ${dateRange}`;
+      }
+      console.log('📅 Generating report with date range:', dateRange, 'Donation type:', donationType, 'Actual dates:', actualStartDate, 'to', actualEndDate);
+      
+      // Call generateReport with explicit dates
+      return await generateReport(requestWithDate, donationType, actualStartDate, actualEndDate);
     } catch (error) {
       console.error('Error generating report with date range:', error);
       return null;
@@ -768,6 +826,15 @@ const AIChat = ({ onGenerateReport }) => {
   const handleVisitorReportTypeSelection = (reportType) => {
     setVisitorReportType(reportType);
     
+    // Add user message to show what they selected
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: reportType === 'graph' ? 'Graph Report - Visual analytics with charts and graphs' : 'Visitor List Report - Simple list of all visitors',
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
     if (reportType === 'graph') {
       // Ask for year selection for visitor graph
       const aiMessage = {
@@ -807,7 +874,42 @@ const AIChat = ({ onGenerateReport }) => {
       setWaitingForVisitorDateRange(true);
     } else {
       setWaitingForVisitorDateRange(false);
-      generateVisitorReport('visitor_list', startDate, endDate);
+      
+      // Calculate actual dates based on selection
+      let actualStartDate, actualEndDate, displayText;
+      
+      if (startDate === 'all' && endDate === 'all') {
+        // All data - use a very wide date range
+        actualStartDate = '2020-01-01';
+        actualEndDate = new Date().toISOString().split('T')[0]; // Today
+        displayText = 'All Data - Complete visitor history';
+      } else if (startDate === 'this_month' && endDate === 'this_month') {
+        // This month - calculate current month's start and end
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        actualStartDate = firstDay.toISOString().split('T')[0];
+        actualEndDate = lastDay.toISOString().split('T')[0];
+        const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        displayText = `This Month - ${monthName} (${actualStartDate} to ${actualEndDate})`;
+      } else {
+        // Use the provided dates as-is (custom range)
+        actualStartDate = startDate;
+        actualEndDate = endDate;
+        displayText = `Custom Range - ${actualStartDate} to ${actualEndDate}`;
+      }
+      
+      // Add user message to show what they selected
+      const userMessage = {
+        id: Date.now(),
+        type: 'user',
+        content: displayText,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, userMessage]);
+      
+      console.log('Date range selection:', { startDate, endDate, actualStartDate, actualEndDate });
+      generateVisitorReport('visitor_list', actualStartDate, actualEndDate);
     }
   };
 
@@ -848,6 +950,7 @@ const AIChat = ({ onGenerateReport }) => {
     try {
       console.log('Generating visitor report:', reportType, startDate, endDate, 'Year:', year, 'Month:', month);
       
+      // Use a longer timeout for report generation requests
       const response = await api.post('/api/reports/generate', {
         reportType: reportType,
         startDate: startDate,
@@ -859,6 +962,8 @@ const AIChat = ({ onGenerateReport }) => {
         includePredictions: false,
         includeComparisons: false,
         prompt: `Generate ${reportType === 'visitor_analytics' ? 'visitor analytics' : 'visitor list'} report${year ? ` for ${year}` : ''}${month && month !== 'all' ? ` - ${getMonthName(month)}` : ''}`
+      }, {
+        timeout: 120000 // 2 minutes for report generation
       });
 
       if (response.data.success) {
@@ -896,18 +1001,39 @@ const AIChat = ({ onGenerateReport }) => {
   };
 
   const handleEventParticipantsReportTypeSelection = async (reportType) => {
-    // First, fetch available events
+    // Add user message to show what they selected
+    const reportTypeNames = {
+      'list': 'Event List Report - Simple list of all events',
+      'participants': 'Event Participants Report - List of event participants'
+    };
+    
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: reportTypeNames[reportType],
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    if (reportType === 'list') {
+      // For event list, ask for date range first (like visitor list)
+      const aiMessage = {
+        id: Date.now() + 1,
+        type: 'ai',
+        content: "Perfect! For the Event List Report, please specify the date range. You can choose from the options below or type a custom date range:",
+        timestamp: new Date(),
+        showEventListDateOptions: true
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      setWaitingForEventListDateRange(true);
+    } else {
+      // For participants, fetch available events first
     try {
       console.log('Fetching events for report type:', reportType);
       const response = await api.get('/api/event-registrations/events');
       console.log('Events response:', response.data);
       const events = response.data.events || [];
       setAvailableEvents(events);
-      
-      const reportTypeNames = {
-        'list': 'Event List Report',
-        'participants': 'Event Participants Report'
-      };
       
       const aiMessage = {
         id: Date.now() + 1,
@@ -928,6 +1054,7 @@ const AIChat = ({ onGenerateReport }) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
+      }
     }
   };
 
@@ -967,7 +1094,42 @@ const AIChat = ({ onGenerateReport }) => {
       setWaitingForEventListDateRange(true);
     } else {
       setWaitingForEventListDateRange(false);
-      generateEventParticipantsReport('event_list', startDate, endDate);
+      
+      // Calculate actual dates based on selection
+      let actualStartDate, actualEndDate, displayText;
+      
+      if (startDate === 'all' && endDate === 'all') {
+        // All data - use a very wide date range
+        actualStartDate = '2020-01-01';
+        actualEndDate = new Date().toISOString().split('T')[0]; // Today
+        displayText = 'All Data - Complete event history';
+      } else if (startDate === 'this_month' && endDate === 'this_month') {
+        // This month - calculate current month's start and end
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        actualStartDate = firstDay.toISOString().split('T')[0];
+        actualEndDate = lastDay.toISOString().split('T')[0];
+        const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        displayText = `This Month - ${monthName} (${actualStartDate} to ${actualEndDate})`;
+      } else {
+        // Use the provided dates as-is (custom range)
+        actualStartDate = startDate;
+        actualEndDate = endDate;
+        displayText = `Custom Range - ${actualStartDate} to ${actualEndDate}`;
+      }
+      
+      // Add user message to show what they selected
+      const userMessage = {
+        id: Date.now(),
+        type: 'user',
+        content: displayText,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, userMessage]);
+      
+      console.log('Event list date range selection:', { startDate, endDate, actualStartDate, actualEndDate });
+      generateEventParticipantsReport('event_list', actualStartDate, actualEndDate);
     }
   };
 
@@ -989,13 +1151,41 @@ const AIChat = ({ onGenerateReport }) => {
     }
   };
 
-  const handleDonationDateRangeSelection = (startDate, endDate) => {
+  const handleDonationTypeSelection = async (donationType) => {
+    console.log('🖱️ Donation type clicked:', donationType);
+    // Store the selected donation type
+    setSelectedDonationType(donationType);
+    
+    // Show specific date range message for all donation types
+    let message = '';
+    if (donationType === 'all') {
+      message = "Great! You've selected All Types donations. Now please select your preferred date range:";
+    } else if (donationType === 'monetary') {
+      message = "Great! You've selected Monetary donations. Now please select your preferred date range:";
+    } else if (donationType === 'artifact') {
+      message = "Great! You've selected Artifact donations. Now please select your preferred date range:";
+    } else if (donationType === 'loan') {
+      message = "Great! You've selected Loan Artifact donations. Now please select your preferred date range:";
+    }
+    
+    const aiMessage = {
+      id: Date.now() + 1,
+      type: 'ai',
+      content: message,
+      timestamp: new Date(),
+      showDonationDateOptions: true
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setWaitingForDonationDateRange(true);
+  };
+
+  const handleDonationDateRangeSelection = async (startDate, endDate) => {
     if (startDate === 'custom' && endDate === 'custom') {
       // Show custom date picker
       const aiMessage = {
         id: Date.now() + 1,
         type: 'ai',
-        content: "Perfect! Please select your custom date range for the donation list:",
+        content: "Perfect! Please select your custom date range for the donation report:",
         timestamp: new Date(),
         showDonationCustomDatePicker: true
       };
@@ -1003,11 +1193,62 @@ const AIChat = ({ onGenerateReport }) => {
       setWaitingForDonationDateRange(true);
     } else {
       setWaitingForDonationDateRange(false);
-      generateReportWithDateRange('donation list');
+      console.log('🎯 Generating donation report with type:', selectedDonationType, 'Date range:', startDate, 'to', endDate);
+      
+      // Calculate actual dates based on the selection
+      let actualStartDate = startDate;
+      let actualEndDate = endDate;
+      let reportTypeValue = 'custom'; // Default to custom for actual date strings
+      
+      // Handle "this month" selection
+      if (startDate === '1month' && endDate === 'all') {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month
+        actualStartDate = start.toISOString().split('T')[0];
+        actualEndDate = end.toISOString().split('T')[0];
+        reportTypeValue = '1month';
+        console.log('📅 This month calculated:', actualStartDate, 'to', actualEndDate);
+        console.log('📅 Current month:', today.getMonth() + 1, 'Year:', today.getFullYear());
+      } else if (startDate === 'all' && endDate === 'all') {
+        reportTypeValue = 'all';
+      } else if (startDate && endDate && startDate !== 'custom' && endDate !== 'custom' && startDate !== 'all' && endDate !== 'all') {
+        // These are actual date strings (custom date range)
+        reportTypeValue = 'custom';
+        console.log('📅 Custom date range detected:', actualStartDate, 'to', actualEndDate);
+      }
+      
+      // Set reportType based on selection
+      setReportType(reportTypeValue);
+      setStartDate(actualStartDate);
+      setEndDate(actualEndDate);
+      
+      // Generate report with the actual date range - pass reportTypeValue directly to avoid state timing issues
+      const reportResponse = await generateReportWithDateRange('donation report', selectedDonationType, actualStartDate, actualEndDate, reportTypeValue);
+      if (reportResponse) {
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: reportResponse.message,
+          timestamp: new Date(),
+          report: reportResponse.report
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Pass the generated report to parent component
+        if (reportResponse.report && onGenerateReport) {
+          console.log('Passing donation report to parent component:', reportResponse.report);
+          onGenerateReport(reportResponse.report);
+        }
+      }
+      
+      // Clear the date states after generation
+      setDonationStartDate(null);
+      setDonationEndDate(null);
     }
   };
 
-  const handleCulturalObjectDateRangeSelection = (startDate, endDate) => {
+  const handleCulturalObjectDateRangeSelection = async (startDate, endDate) => {
     if (startDate === 'custom' && endDate === 'custom') {
       // Show custom date picker
       const aiMessage = {
@@ -1021,11 +1262,66 @@ const AIChat = ({ onGenerateReport }) => {
       setWaitingForCulturalObjectDateRange(true);
     } else {
       setWaitingForCulturalObjectDateRange(false);
-      generateReportWithDateRange('cultural objects report');
+      // Reset date picker state
+      setCulturalObjectStartDate(null);
+      setCulturalObjectEndDate(null);
+      console.log('🎯 Generating cultural objects report. Date range:', startDate, 'to', endDate);
+      
+      // Calculate actual dates based on the selection
+      let actualStartDate = startDate;
+      let actualEndDate = endDate;
+      let reportTypeValue = 'custom'; // Default to custom for actual date strings
+      
+      // Handle "this month" selection
+      if (startDate === '1month' && endDate === 'all') {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month
+        // Format dates in local timezone to avoid timezone conversion issues
+        const formatLocalDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        actualStartDate = formatLocalDate(start);
+        actualEndDate = formatLocalDate(end);
+        reportTypeValue = '1month';
+        console.log('📅 This month calculated for cultural objects:', actualStartDate, 'to', actualEndDate);
+        console.log('📅 Current month:', today.getMonth() + 1, 'Year:', today.getFullYear());
+      } else if (startDate === 'all' && endDate === 'all') {
+        reportTypeValue = 'all';
+        actualStartDate = null;
+        actualEndDate = null;
+      } else if (startDate && endDate && startDate !== 'custom' && endDate !== 'custom' && startDate !== 'all' && endDate !== 'all') {
+        // These are actual date strings (custom date range)
+        reportTypeValue = 'custom';
+        console.log('📅 Custom date range detected for cultural objects:', actualStartDate, 'to', actualEndDate);
+        console.log('📅 Original input dates:', startDate, 'to', endDate);
+      }
+      
+      console.log('📅 Final dates being passed to generateReportWithDateRange:', actualStartDate, 'to', actualEndDate, 'reportType:', reportTypeValue);
+      const reportResponse = await generateReportWithDateRange('cultural objects report', null, actualStartDate, actualEndDate, reportTypeValue);
+      if (reportResponse) {
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: reportResponse.message,
+          timestamp: new Date(),
+          report: reportResponse.report
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Pass the generated report to parent component
+        if (reportResponse.report && onGenerateReport) {
+          console.log('Passing cultural object report to parent component:', reportResponse.report);
+          onGenerateReport(reportResponse.report);
+        }
+      }
     }
   };
 
-  const handleArchiveDateRangeSelection = (startDate, endDate) => {
+  const handleArchiveDateRangeSelection = async (startDate, endDate) => {
     if (startDate === 'custom' && endDate === 'custom') {
       // Show custom date picker
       const aiMessage = {
@@ -1039,7 +1335,63 @@ const AIChat = ({ onGenerateReport }) => {
       setWaitingForArchiveDateRange(true);
     } else {
       setWaitingForArchiveDateRange(false);
-      generateReportWithDateRange('archive analysis');
+      // Reset date picker state
+      setArchiveStartDate(null);
+      setArchiveEndDate(null);
+      
+      console.log('🎯 Generating archive report. Date range:', startDate, 'to', endDate);
+      
+      // Calculate actual dates based on the selection
+      let actualStartDate = startDate;
+      let actualEndDate = endDate;
+      let reportTypeValue = 'custom'; // Default to custom for actual date strings
+      
+      // Handle "this month" selection
+      if (startDate === '1month' && endDate === 'all') {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month
+        // Format dates in local timezone to avoid timezone conversion issues
+        const formatLocalDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        actualStartDate = formatLocalDate(start);
+        actualEndDate = formatLocalDate(end);
+        reportTypeValue = '1month';
+        console.log('📅 This month calculated for archive:', actualStartDate, 'to', actualEndDate);
+        console.log('📅 Current month:', today.getMonth() + 1, 'Year:', today.getFullYear());
+      } else if (startDate === 'all' && endDate === 'all') {
+        reportTypeValue = 'all';
+        actualStartDate = null;
+        actualEndDate = null;
+      } else if (startDate && endDate && startDate !== 'custom' && endDate !== 'custom' && startDate !== 'all' && endDate !== 'all') {
+        // These are actual date strings (custom date range)
+        reportTypeValue = 'custom';
+        console.log('📅 Custom date range detected for archive:', actualStartDate, 'to', actualEndDate);
+        console.log('📅 Original input dates:', startDate, 'to', endDate);
+      }
+      
+      console.log('📅 Final dates being passed to generateReportWithDateRange:', actualStartDate, 'to', actualEndDate, 'reportType:', reportTypeValue);
+      const reportResponse = await generateReportWithDateRange('archive analysis', null, actualStartDate, actualEndDate, reportTypeValue);
+      if (reportResponse) {
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: reportResponse.message,
+          timestamp: new Date(),
+          report: reportResponse.report
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Pass the generated report to parent component
+        if (reportResponse.report && onGenerateReport) {
+          console.log('Passing archive report to parent component:', reportResponse.report);
+          onGenerateReport(reportResponse.report);
+        }
+      }
     }
   };
 
@@ -1053,16 +1405,8 @@ const AIChat = ({ onGenerateReport }) => {
     console.log('Selected event:', selectedEvent);
     
     if (eventParticipantsReportType === 'participants') {
-      // For participants reports, ask for date range
-      const aiMessage = {
-        id: Date.now() + 1,
-        type: 'ai',
-        content: `Perfect! You selected "${selectedEvent?.name || 'Event'}". For the Event Participants Report, please specify the date range. You can choose from the options below or type a custom date range:`,
-        timestamp: new Date(),
-        showEventParticipantsDateOptions: true
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setWaitingForEventParticipantsDateRange(true);
+      // For participants reports, generate immediately with the selected event
+      generateEventParticipantsReport('event_participants', null, null, selectedEvent.id);
     } else {
       // For list reports, generate immediately
       const confirmationMessage = {
@@ -1093,6 +1437,8 @@ const AIChat = ({ onGenerateReport }) => {
         includePredictions: false,
         includeComparisons: false,
         prompt: `Generate ${reportType === 'event_list' ? 'event list' : 'event participants'} report`
+      }, {
+        timeout: 120000 // 2 minutes for report generation
       });
 
       if (response.data.success) {
@@ -1135,7 +1481,7 @@ const AIChat = ({ onGenerateReport }) => {
     }
   };
 
-  const generateReport = async (userRequest) => {
+  const generateReport = async (userRequest, donationType = null, explicitStartDate = null, explicitEndDate = null) => {
     try {
       console.log('Generating report for request:', userRequest);
       
@@ -1165,9 +1511,30 @@ const AIChat = ({ onGenerateReport }) => {
       console.log('🔍 Debug: Determining report type for request:', userRequest);
       console.log('🔍 Debug: Lower request:', lowerRequest);
       
-      if (lowerRequest.includes('visitor') || lowerRequest.includes('visitors')) {
+      // More specific detection to avoid confusion between report types
+      if (lowerRequest.includes('event') && (lowerRequest.includes('participant') || lowerRequest.includes('attendee') || lowerRequest.includes('participants'))) {
+        reportType = 'event_participants';
+        console.log('🔍 Debug: Selected event_participants (specific event participants)');
+      } else if (lowerRequest.includes('event') && (lowerRequest.includes('list') || lowerRequest.includes('events list'))) {
+        reportType = 'event_list';
+        console.log('🔍 Debug: Selected event_list (specific event list)');
+      } else if (lowerRequest.includes('visitor') && (lowerRequest.includes('list') || lowerRequest.includes('visitor list'))) {
+        reportType = 'visitor_list';
+        console.log('🔍 Debug: Selected visitor_list (specific visitor list)');
+      } else if (lowerRequest.includes('visitor') && (lowerRequest.includes('graph') || lowerRequest.includes('chart') || lowerRequest.includes('analytics'))) {
         reportType = 'visitor_analytics';
-        console.log('🔍 Debug: Selected visitor_analytics');
+        console.log('🔍 Debug: Selected visitor_analytics (specific visitor graph)');
+      } else if (lowerRequest.includes('visitor') || lowerRequest.includes('visitors')) {
+        // Default visitor request - ask for clarification
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: "I can create two types of visitor reports for you:",
+          timestamp: new Date(),
+          showVisitorOptions: true
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        return;
       } else if (lowerRequest.includes('cultural') || lowerRequest.includes('object')) {
         reportType = 'cultural_objects';
         console.log('🔍 Debug: Selected cultural_objects');
@@ -1186,12 +1553,17 @@ const AIChat = ({ onGenerateReport }) => {
       } else if (lowerRequest.includes('financial') || lowerRequest.includes('revenue')) {
         reportType = 'financial_report';
         console.log('🔍 Debug: Selected financial_report');
-      } else if (lowerRequest.includes('event') && (lowerRequest.includes('participant') || lowerRequest.includes('attendee'))) {
-        reportType = 'event_participants';
-        console.log('🔍 Debug: Selected event_participants');
       } else if (lowerRequest.includes('event')) {
-        reportType = 'event_list';
-        console.log('🔍 Debug: Selected event_list');
+        // Default event request - ask for clarification
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: "I can create two types of event reports for you:",
+          timestamp: new Date(),
+          showEventParticipantsOptions: true
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        return;
       } else if (lowerRequest.includes('exhibit') && lowerRequest.includes('duration')) {
         reportType = 'exhibits_report';
       } else if (lowerRequest.includes('exhibit')) {
@@ -1416,7 +1788,11 @@ const AIChat = ({ onGenerateReport }) => {
 
       let reportParams;
       
-      if (isAllDataRequest) {
+      // Use explicit dates if provided (from custom date picker), otherwise use parsed dates
+      const effectiveStartDate = explicitStartDate || parsed?.startDate;
+      const effectiveEndDate = explicitEndDate || parsed?.endDate;
+      
+      if (isAllDataRequest || (!effectiveStartDate && !effectiveEndDate)) {
         // For "all data" requests, don't send specific dates
         reportParams = {
           reportType: reportType,
@@ -1430,15 +1806,15 @@ const AIChat = ({ onGenerateReport }) => {
           userRequest: userRequest
         };
       } else {
-        // Default if no parseable range: broader window
+        // Use explicit dates if provided, otherwise parsed dates, otherwise default
         const now = new Date();
         const defaultStart = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
         const defaultEnd = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
 
         reportParams = {
           reportType: reportType,
-          startDate: (parsed?.startDate) || defaultStart.toISOString().split('T')[0],
-          endDate: (parsed?.endDate) || defaultEnd.toISOString().split('T')[0],
+          startDate: effectiveStartDate || defaultStart.toISOString().split('T')[0],
+          endDate: effectiveEndDate || defaultEnd.toISOString().split('T')[0],
           aiAssisted: true,
           includeCharts: true,
           includeRecommendations: true,
@@ -1447,22 +1823,47 @@ const AIChat = ({ onGenerateReport }) => {
           userRequest: userRequest
         };
       }
+      
+      console.log('📅 Report date parameters:', { 
+        explicitStartDate, 
+        explicitEndDate, 
+        parsedStartDate: parsed?.startDate, 
+        parsedEndDate: parsed?.endDate,
+        finalStartDate: reportParams.startDate,
+        finalEndDate: reportParams.endDate
+      });
 
-      // Add donation type if it's a donation type report
-      if (reportType === 'donation_type_report') {
-        if (userRequest.toLowerCase().includes('monetary')) {
+      // Add donation type if it's a donation report
+      console.log('🔍 Checking donation type logic:', { reportType, donationType, userRequest });
+      if (reportType === 'donation_type_report' || reportType === 'donation_report' || userRequest.toLowerCase().includes('donation')) {
+        if (donationType) {
+          // Use the passed donation type parameter
+          reportParams.donationType = donationType;
+          console.log('🎯 Using passed donation type:', donationType);
+        } else if (userRequest.toLowerCase().includes('monetary')) {
           reportParams.donationType = 'monetary';
+          console.log('💰 Detected monetary from request text');
         } else if (userRequest.toLowerCase().includes('loan')) {
           reportParams.donationType = 'loan';
+          console.log('📦 Detected loan from request text');
         } else if (userRequest.toLowerCase().includes('donated')) {
           reportParams.donationType = 'donated';
+          console.log('🎁 Detected donated from request text');
+        } else if (userRequest.toLowerCase().includes('artifact')) {
+          reportParams.donationType = 'artifact';
+          console.log('🎯 Detected artifact from request text');
+        } else {
+          reportParams.donationType = 'all';
+          console.log('📊 Defaulting to all types');
         }
       }
 
       console.log('Report parameters:', reportParams);
 
       // Generate the report
-      const response = await api.post("/api/reports/generate", reportParams);
+      const response = await api.post("/api/reports/generate", reportParams, {
+        timeout: 120000 // 2 minutes for report generation
+      });
 
       console.log('API response:', response.data);
 
@@ -1629,7 +2030,7 @@ const AIChat = ({ onGenerateReport }) => {
       category: "report"
     },
     {
-      label: "Archive Analysis",
+      label: "Archive",
       icon: "fa-box-archive",
       action: () => {
         // Set up archive analysis report request
@@ -1640,13 +2041,29 @@ const AIChat = ({ onGenerateReport }) => {
         const aiMessage = {
           id: Date.now() + 1,
           type: 'ai',
-          content: "Excellent! I can generate an Archive Analysis Report for you. Please select your preferred date range:",
+          content: "Excellent! I can generate an Archive Report for you. Please select your preferred date range:",
           timestamp: new Date(),
           showArchiveDateOptions: true
         };
         setMessages(prev => [...prev, aiMessage]);
       },
       category: "analysis"
+    },
+    {
+      label: "Donation",
+      icon: "fa-hand-holding-dollar",
+      action: () => {
+        // Show donation type options first
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: "Great! I can generate a Donation Report for you. First, please select what type of donation you want to analyze:",
+          timestamp: new Date(),
+          showDonationTypeOptions: true
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      },
+      category: "report"
     },
     {
       label: "Financial Summary",
@@ -1826,7 +2243,10 @@ const AIChat = ({ onGenerateReport }) => {
                   <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
                     <div className="space-y-3">
                       <p className="text-sm text-gray-700 mb-3">
-                        📅 For the Donation Report, what time period would you like to include?
+                        📅 For the {selectedDonationType === 'all' ? 'Donation Report' : 
+                                   selectedDonationType === 'monetary' ? 'Donation Monetary Report' :
+                                   selectedDonationType === 'artifact' ? 'Donation Artifact Report' :
+                                   selectedDonationType === 'loan' ? 'Donation Loan Artifact Report' : 'Donation Report'}, what time period would you like to include?
                       </p>
                       
                       <div className="space-y-2">
@@ -1839,10 +2259,10 @@ const AIChat = ({ onGenerateReport }) => {
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-800 mb-1">
-                              📊 <strong>All Data</strong> - Complete donation history
+                              📊 <strong>All Data</strong> - Complete {selectedDonationType === 'all' ? 'donation' : selectedDonationType === 'monetary' ? 'monetary donation' : selectedDonationType === 'artifact' ? 'artifact donation' : selectedDonationType === 'loan' ? 'loan artifact' : 'donation'} history
                             </p>
                             <p className="text-xs text-gray-600">
-                              Shows all donations that have ever been received by the museum.
+                              Shows all {selectedDonationType === 'all' ? 'donations' : selectedDonationType === 'monetary' ? 'monetary donations' : selectedDonationType === 'artifact' ? 'artifact donations' : selectedDonationType === 'loan' ? 'loan artifacts' : 'donations'} that have ever been received by the museum.
                             </p>
                           </div>
                         </div>
@@ -1859,12 +2279,15 @@ const AIChat = ({ onGenerateReport }) => {
                               📅 <strong>This Month</strong> - Full current month
                             </p>
                             <p className="text-xs text-gray-600">
-                              Shows donations from the 1st to the last day of the current month.
+                              Shows {selectedDonationType === 'all' ? 'donations' : selectedDonationType === 'monetary' ? 'monetary donations' : selectedDonationType === 'artifact' ? 'artifact donations' : selectedDonationType === 'loan' ? 'loan artifacts' : 'donations'} from the 1st to the last day of the current month.
                             </p>
                           </div>
                         </div>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                        <div 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleDonationDateRangeSelection('custom', 'custom')}
+                        >
                           <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                             <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
                           </div>
@@ -1873,7 +2296,7 @@ const AIChat = ({ onGenerateReport }) => {
                               📆 <strong>Custom Range</strong> - Specific date period
                             </p>
                             <p className="text-xs text-gray-600">
-                              Choose your own start and end dates for precise donation analysis.
+                              Choose your own start and end dates for precise {selectedDonationType === 'all' ? 'donation' : selectedDonationType === 'monetary' ? 'monetary donation' : selectedDonationType === 'artifact' ? 'artifact donation' : selectedDonationType === 'loan' ? 'loan artifact' : 'donation'} analysis.
                             </p>
                           </div>
                         </div>
@@ -1929,7 +2352,10 @@ const AIChat = ({ onGenerateReport }) => {
                           </div>
                         </div>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                        <div 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleCulturalObjectDateRangeSelection('custom', 'custom')}
+                        >
                           <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                             <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
                           </div>
@@ -1947,6 +2373,170 @@ const AIChat = ({ onGenerateReport }) => {
                       <p className="text-xs text-gray-600 mt-3">
                         Just type <strong>"all"</strong>, <strong>"this month"</strong>, or <strong>"custom"</strong> to choose.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom date picker for cultural objects reports */}
+                {message.showCulturalObjectCustomDatePicker && waitingForCulturalObjectDateRange && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-700 mb-3">
+                        📅 Select your custom date range for the cultural objects report:
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            <i className="fa-solid fa-play mr-1 text-green-600"></i>
+                            Start Date
+                            {culturalObjectStartDate && (
+                              <span className="ml-2 text-xs text-green-600 font-normal">
+                                ({culturalObjectStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                              </span>
+                            )}
+                          </label>
+                          <DatePicker
+                            selected={culturalObjectStartDate}
+                            onChange={(date) => {
+                              setCulturalObjectStartDate(date);
+                              // If end date is before new start date, clear it
+                              if (culturalObjectEndDate && date && date > culturalObjectEndDate) {
+                                setCulturalObjectEndDate(null);
+                              }
+                            }}
+                            maxDate={culturalObjectEndDate || undefined}
+                            dateFormat="dd/MM/yyyy"
+                            className="w-full p-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all"
+                            placeholderText="Select start date"
+                            showMonthDropdown
+                            showYearDropdown
+                            dropdownMode="scroll"
+                            scrollableYearDropdown
+                            scrollableMonthDropdown
+                            yearDropdownItemNumber={15}
+                          />
+                          {culturalObjectStartDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Selected: {culturalObjectStartDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            <i className="fa-solid fa-stop mr-1 text-red-600"></i>
+                            End Date
+                            {culturalObjectEndDate && (
+                              <span className="ml-2 text-xs text-red-600 font-normal">
+                                ({culturalObjectEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                              </span>
+                            )}
+                            {culturalObjectStartDate && !culturalObjectEndDate && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">
+                                (Start: {culturalObjectStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                              </span>
+                            )}
+                          </label>
+                          <div className="relative">
+                            <DatePicker
+                              selected={culturalObjectEndDate}
+                              onChange={(date) => setCulturalObjectEndDate(date)}
+                              minDate={culturalObjectStartDate || undefined}
+                              startDate={culturalObjectStartDate || undefined}
+                              highlightDates={culturalObjectStartDate ? [culturalObjectStartDate] : []}
+                              openToDate={culturalObjectStartDate || new Date()}
+                              dateFormat="dd/MM/yyyy"
+                              className="w-full p-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all"
+                              placeholderText="Select end date"
+                              showMonthDropdown
+                              showYearDropdown
+                              dropdownMode="scroll"
+                              scrollableYearDropdown
+                              scrollableMonthDropdown
+                              yearDropdownItemNumber={15}
+                              title={culturalObjectStartDate ? `Select end date. Start date is ${culturalObjectStartDate.toLocaleDateString()} - dates before this are disabled in the calendar.` : 'Select end date'}
+                              popperModifiers={[
+                                {
+                                  name: "offset",
+                                  options: {
+                                    offset: [0, 8]
+                                  }
+                                }
+                              ]}
+                            />
+                          </div>
+                          {culturalObjectEndDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Selected: {culturalObjectEndDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                          {culturalObjectStartDate && !culturalObjectEndDate && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">
+                              💡 Start date selected: {culturalObjectStartDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {culturalObjectStartDate && culturalObjectEndDate && (
+                        <div className="mt-3 p-3 bg-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-lg">
+                          <p className="text-xs font-medium text-gray-700">
+                            📊 Date Range: <span className="text-[#E5B80B] font-bold">
+                              {new Date(culturalObjectStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 
+                              {' → '}
+                              {new Date(culturalObjectEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {Math.ceil((new Date(culturalObjectEndDate) - new Date(culturalObjectStartDate)) / (1000 * 60 * 60 * 24)) + 1} days selected
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#E5B80B]/20">
+                        <div className="text-xs text-gray-600 flex items-center">
+                          <div className="w-4 h-4 bg-[#E5B80B]/20 rounded-full flex items-center justify-center mr-2">
+                            <i className="fa-solid fa-info text-[#E5B80B] text-xs"></i>
+                          </div>
+                          {culturalObjectStartDate && culturalObjectEndDate ? 'Ready to generate report!' : 'Select both dates to continue'}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setWaitingForCulturalObjectDateRange(false);
+                              setCulturalObjectStartDate(null);
+                              setCulturalObjectEndDate(null);
+                            }}
+                            className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            <i className="fa-solid fa-times mr-1"></i>
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (culturalObjectStartDate && culturalObjectEndDate) {
+                                // Format dates in local timezone to avoid timezone conversion issues
+                                const formatLocalDate = (date) => {
+                                  const year = date.getFullYear();
+                                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                                  const day = String(date.getDate()).padStart(2, '0');
+                                  return `${year}-${month}-${day}`;
+                                };
+                                const startDateStr = formatLocalDate(culturalObjectStartDate);
+                                const endDateStr = formatLocalDate(culturalObjectEndDate);
+                                console.log('📅 Cultural objects custom date range selected:', startDateStr, 'to', endDateStr);
+                                handleCulturalObjectDateRangeSelection(startDateStr, endDateStr);
+                              }
+                            }}
+                            disabled={!culturalObjectStartDate || !culturalObjectEndDate}
+                            className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg text-xs font-medium hover:bg-[#D4AF37] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            <i className="fa-solid fa-play text-xs"></i>
+                            Generate Report
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1994,7 +2584,10 @@ const AIChat = ({ onGenerateReport }) => {
                           </div>
                         </div>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                        <div 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleArchiveDateRangeSelection('custom', 'custom')}
+                        >
                           <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                             <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
                           </div>
@@ -2016,60 +2609,333 @@ const AIChat = ({ onGenerateReport }) => {
                   </div>
                 )}
 
-                {/* Donation type selection options */}
-                {message.showDonationTypeOptions && (
+                {/* Custom date picker for archive reports */}
+                {message.showArchiveCustomDatePicker && waitingForArchiveDateRange && (
                   <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
                     <div className="space-y-3">
                       <p className="text-sm text-gray-700 mb-3">
-                        Please select the specific donation type you want to filter by:
+                        📅 Select your custom date range for the archive analysis report:
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            <i className="fa-solid fa-play mr-1 text-green-600"></i>
+                            Start Date
+                            {archiveStartDate && (
+                              <span className="ml-2 text-xs text-green-600 font-normal">
+                                ({archiveStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                              </span>
+                            )}
+                          </label>
+                          <DatePicker
+                            selected={archiveStartDate}
+                            onChange={(date) => {
+                              setArchiveStartDate(date);
+                              // If end date is before new start date, clear it
+                              if (archiveEndDate && date && date > archiveEndDate) {
+                                setArchiveEndDate(null);
+                              }
+                            }}
+                            maxDate={archiveEndDate || undefined}
+                            dateFormat="dd/MM/yyyy"
+                            className="w-full p-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all"
+                            placeholderText="Select start date"
+                            showMonthDropdown
+                            showYearDropdown
+                            dropdownMode="scroll"
+                            scrollableYearDropdown
+                            scrollableMonthDropdown
+                            yearDropdownItemNumber={15}
+                          />
+                          {archiveStartDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Selected: {archiveStartDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            <i className="fa-solid fa-stop mr-1 text-red-600"></i>
+                            End Date
+                            {archiveEndDate && (
+                              <span className="ml-2 text-xs text-red-600 font-normal">
+                                ({archiveEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                              </span>
+                            )}
+                            {archiveStartDate && !archiveEndDate && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">
+                                (Start: {archiveStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                              </span>
+                            )}
+                          </label>
+                          <div className="relative">
+                            <DatePicker
+                              selected={archiveEndDate}
+                              onChange={(date) => setArchiveEndDate(date)}
+                              minDate={archiveStartDate || undefined}
+                              startDate={archiveStartDate || undefined}
+                              highlightDates={archiveStartDate ? [archiveStartDate] : []}
+                              openToDate={archiveStartDate || new Date()}
+                              dateFormat="dd/MM/yyyy"
+                              className="w-full p-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all"
+                              placeholderText="Select end date"
+                              showMonthDropdown
+                              showYearDropdown
+                              dropdownMode="scroll"
+                              scrollableYearDropdown
+                              scrollableMonthDropdown
+                              yearDropdownItemNumber={15}
+                              title={archiveStartDate ? `Select end date. Start date is ${archiveStartDate.toLocaleDateString()} - dates before this are disabled in the calendar.` : 'Select end date'}
+                              popperModifiers={[
+                                {
+                                  name: "offset",
+                                  options: {
+                                    offset: [0, 8]
+                                  }
+                                }
+                              ]}
+                            />
+                          </div>
+                          {archiveEndDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Selected: {archiveEndDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                          {archiveStartDate && !archiveEndDate && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">
+                              💡 Start date selected: {archiveStartDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {archiveStartDate && archiveEndDate && (
+                        <div className="mt-3 p-3 bg-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-lg">
+                          <p className="text-xs font-medium text-gray-700">
+                            📊 Date Range: <span className="text-[#E5B80B] font-bold">
+                              {new Date(archiveStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 
+                              {' → '}
+                              {new Date(archiveEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {Math.ceil((new Date(archiveEndDate) - new Date(archiveStartDate)) / (1000 * 60 * 60 * 24)) + 1} days selected
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#E5B80B]/20">
+                        <div className="text-xs text-gray-600 flex items-center">
+                          <div className="w-4 h-4 bg-[#E5B80B]/20 rounded-full flex items-center justify-center mr-2">
+                            <i className="fa-solid fa-info text-[#E5B80B] text-xs"></i>
+                          </div>
+                          {archiveStartDate && archiveEndDate ? 'Ready to generate report!' : 'Select both dates to continue'}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setWaitingForArchiveDateRange(false);
+                              setArchiveStartDate(null);
+                              setArchiveEndDate(null);
+                            }}
+                            className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            <i className="fa-solid fa-times mr-1"></i>
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (archiveStartDate && archiveEndDate) {
+                                // Format dates in local timezone to avoid timezone conversion issues
+                                const formatLocalDate = (date) => {
+                                  const year = date.getFullYear();
+                                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                                  const day = String(date.getDate()).padStart(2, '0');
+                                  return `${year}-${month}-${day}`;
+                                };
+                                const startDateStr = formatLocalDate(archiveStartDate);
+                                const endDateStr = formatLocalDate(archiveEndDate);
+                                console.log('📅 Archive custom date range selected:', startDateStr, 'to', endDateStr);
+                                handleArchiveDateRangeSelection(startDateStr, endDateStr);
+                              }
+                            }}
+                            disabled={!archiveStartDate || !archiveEndDate}
+                            className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg text-xs font-medium hover:bg-[#D4AF37] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            <i className="fa-solid fa-play text-xs"></i>
+                            Generate Report
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Donation date options - conversational */}
+                {message.showDonationDateOptions && waitingForDonationDateRange && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-700 mb-3">
+                        📅 For the {selectedDonationType === 'all' ? 'Donation Report' : 
+                                   selectedDonationType === 'monetary' ? 'Donation Monetary Report' :
+                                   selectedDonationType === 'artifact' ? 'Donation Artifact Report' :
+                                   selectedDonationType === 'loan' ? 'Donation Loan Artifact Report' : 'Donation Report'}, what time period would you like to include?
                       </p>
                       
                       <div className="space-y-2">
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <i className="fa-solid fa-money-bill text-green-600 text-xs"></i>
+                        <div 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleDonationDateRangeSelection('all', 'all')}
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <i className="fa-solid fa-database text-[#E5B80B] text-xs"></i>
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-800 mb-1">
-                              💰 <strong>Monetary Donations</strong> - Cash and financial contributions
+                              📊 <strong>All Data</strong> - Complete {selectedDonationType === 'all' ? 'donation' : selectedDonationType === 'monetary' ? 'monetary donation' : selectedDonationType === 'artifact' ? 'artifact donation' : selectedDonationType === 'loan' ? 'loan artifact' : 'donation'} history
                             </p>
                             <p className="text-xs text-gray-600">
-                              All cash donations and financial contributions to the museum.
+                              Shows all {selectedDonationType === 'all' ? 'donations' : selectedDonationType === 'monetary' ? 'monetary donations' : selectedDonationType === 'artifact' ? 'artifact donations' : selectedDonationType === 'loan' ? 'loan artifacts' : 'donations'} that have ever been received by the museum.
                             </p>
                           </div>
                         </div>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <i className="fa-solid fa-handshake text-blue-600 text-xs"></i>
+                        <div 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleDonationDateRangeSelection('1month', 'all')}
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <i className="fa-solid fa-calendar text-[#E5B80B] text-xs"></i>
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-800 mb-1">
-                              🤝 <strong>Loan Artifacts</strong> - Temporary loans for display
+                              📅 <strong>This Month</strong> - Full current month
                             </p>
                             <p className="text-xs text-gray-600">
-                              Artifacts and items loaned to the museum for temporary display.
+                              Shows {selectedDonationType === 'all' ? 'donations' : selectedDonationType === 'monetary' ? 'monetary donations' : selectedDonationType === 'artifact' ? 'artifact donations' : selectedDonationType === 'loan' ? 'loan artifacts' : 'donations'} from the 1st to the last day of the current month.
                             </p>
                           </div>
                         </div>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <i className="fa-solid fa-gift text-purple-600 text-xs"></i>
+                        <div 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleDonationDateRangeSelection('custom', 'custom')}
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-800 mb-1">
-                              🎁 <strong>Donated Artifacts</strong> - Permanent donations
+                              📆 <strong>Custom Range</strong> - Specific date period
                             </p>
                             <p className="text-xs text-gray-600">
-                              Historical items and artifacts permanently donated to the museum.
+                              Choose your own start and end dates for precise {selectedDonationType === 'all' ? 'donation' : selectedDonationType === 'monetary' ? 'monetary donation' : selectedDonationType === 'artifact' ? 'artifact donation' : selectedDonationType === 'loan' ? 'loan artifact' : 'donation'} analysis.
                             </p>
                           </div>
                         </div>
                       </div>
                       
                       <p className="text-xs text-gray-600 mt-3">
-                        Just type <strong>"monetary"</strong>, <strong>"loan"</strong>, or <strong>"donated"</strong> to choose. Or tell me which type you prefer!
+                        Just type <strong>"all"</strong>, <strong>"this month"</strong>, or <strong>"custom"</strong> to choose.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Donation type selection options */}
+                {message.showDonationTypeOptions && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-700 mb-3">
+                        Please select the specific donation type you want to analyze:
+                      </p>
+                      
+                      <div className="space-y-2">
+                        <button 
+                          onClick={() => handleDonationTypeSelection('all')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
+                            <i className="fa-solid fa-list text-[#E5B80B] text-xs"></i>
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
+                              📊 <strong>All Types</strong> - Complete donation overview
+                            </p>
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
+                              Shows all donation types including monetary, artifacts, and loans.
+                            </p>
+                          </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
+                          </div>
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleDonationTypeSelection('monetary')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-green-200 transition-colors">
+                            <i className="fa-solid fa-money-bill text-green-600 text-xs"></i>
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-green-800">
+                              💰 <strong>Monetary</strong> - Cash and financial contributions
+                            </p>
+                            <p className="text-xs text-gray-600 group-hover:text-green-600">
+                              All cash donations and financial contributions to the museum.
+                            </p>
+                          </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-green-500 transition-colors"></i>
+                          </div>
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleDonationTypeSelection('artifact')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-purple-200 transition-colors">
+                            <i className="fa-solid fa-gift text-purple-600 text-xs"></i>
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-purple-800">
+                              🎁 <strong>Artifact</strong> - Permanent donations
+                            </p>
+                            <p className="text-xs text-gray-600 group-hover:text-purple-600">
+                              Historical items and artifacts permanently donated to the museum.
+                            </p>
+                          </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-purple-500 transition-colors"></i>
+                        </div>
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleDonationTypeSelection('loan')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-blue-200 transition-colors">
+                            <i className="fa-solid fa-handshake text-blue-600 text-xs"></i>
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-blue-800">
+                              🤝 <strong>Loan Artifact</strong> - Temporary loans for display
+                            </p>
+                            <p className="text-xs text-gray-600 group-hover:text-blue-600">
+                              Artifacts and items loaned to the museum for temporary display.
+                            </p>
+                          </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-blue-500 transition-colors"></i>
+                          </div>
+                        </button>
+                      </div>
+                      
+                      <p className="text-xs text-gray-600 mt-3">
+                        Click on any option above to get started, or type <strong>"all"</strong>, <strong>"monetary"</strong>, <strong>"artifact"</strong>, or <strong>"loan"</strong> to choose.
                       </p>
                     </div>
                   </div>
@@ -2084,38 +2950,49 @@ const AIChat = ({ onGenerateReport }) => {
                       </p>
                       
                       <div className="space-y-2">
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleVisitorReportTypeSelection('graph')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-purple-200 transition-colors">
                             <i className="fa-solid fa-chart-line text-purple-600 text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-purple-800">
                               📊 <strong>Graph Report</strong> - Visual analytics with charts and graphs
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-purple-600">
                               Perfect for presentations and analysis. Shows visitor trends, demographics, and patterns.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-purple-500 transition-colors"></i>
                         </div>
+                        </button>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleVisitorReportTypeSelection('list')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-blue-200 transition-colors">
                             <i className="fa-solid fa-list text-blue-600 text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-blue-800">
                               📋 <strong>Visitor List Report</strong> - Simple list of all visitors
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-blue-600">
                               Great for detailed records. Shows individual visitor information and contact details.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-blue-500 transition-colors"></i>
                         </div>
+                        </button>
                       </div>
                       
                       <p className="text-xs text-gray-600 mt-3">
-                        Just type <strong>"graph"</strong> for visual analytics or <strong>"visitor list"</strong> for a simple list. 
-                        Or tell me which one you prefer!
+                        Click on either option above to get started, or type <strong>"graph"</strong> for visual analytics or <strong>"visitor list"</strong> for a simple list.
                       </p>
                     </div>
                   </div>
@@ -2342,52 +3219,69 @@ const AIChat = ({ onGenerateReport }) => {
                       </p>
                       
                       <div className="space-y-2">
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleVisitorDateRangeSelection('all', 'all')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
                             <i className="fa-solid fa-database text-[#E5B80B] text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
                               📊 <strong>All Data</strong> - Complete visitor history
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
                               Shows all visitors who have ever checked in to the museum.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
                         </div>
+                        </button>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleVisitorDateRangeSelection('this_month', 'this_month')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
                             <i className="fa-solid fa-calendar text-[#E5B80B] text-xs"></i>
                           </div>
-                          <div className="flex-1">
-       <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
          📅 <strong>This Month</strong> - Full current month
        </p>
-       <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
          Shows visitors from the 1st to the last day of the current month.
        </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
                         </div>
+                        </button>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleVisitorDateRangeSelection('custom', 'custom')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
                             <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
                               📅 <strong>Custom Range</strong> - Specific date period
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
                               Choose your own start and end dates for precise analysis.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
                         </div>
+                        </button>
                       </div>
                       
                       <p className="text-xs text-gray-600 mt-3">
-                        Just type <strong>"all"</strong>, <strong>"last month"</strong>, or <strong>"custom"</strong> to choose. 
-                        Or tell me what time period you'd like to see!
+                        Click on any option above to get started, or type <strong>"all"</strong>, <strong>"this month"</strong>, or <strong>"custom"</strong> to choose.
                       </p>
                     </div>
                   </div>
@@ -2544,60 +3438,77 @@ const AIChat = ({ onGenerateReport }) => {
                 )}
 
                 {/* Event list date options - when user says "event list" */}
-                {message.showEventListDateOptions && (
+                {message.showEventListDateOptions && waitingForEventListDateRange && (
                   <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
                     <div className="space-y-3">
                       <p className="text-sm text-gray-700 mb-3">
-                        For the Event List Report, what time period would you like to include?
+                        📅 For the Event List Report, what time period would you like to include?
                       </p>
                       
                       <div className="space-y-2">
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleEventListDateRangeSelection('all', 'all')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
                             <i className="fa-solid fa-database text-[#E5B80B] text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
                               📊 <strong>All Data</strong> - Complete event history
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
                               Shows all events that have ever been organized by the museum.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
                         </div>
+                        </button>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleEventListDateRangeSelection('this_month', 'this_month')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
                             <i className="fa-solid fa-calendar text-[#E5B80B] text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
                               📅 <strong>This Month</strong> - Full current month
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
                               Shows events from the 1st to the last day of the current month.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
                         </div>
+                        </button>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleEventListDateRangeSelection('custom', 'custom')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#E5B80B] hover:bg-[#E5B80B]/5 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#E5B80B]/30 transition-colors">
                             <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-[#E5B80B]">
                               📆 <strong>Custom Range</strong> - Specific date period
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-[#E5B80B]/80">
                               Choose your own start and end dates for precise analysis.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-[#E5B80B] transition-colors"></i>
                         </div>
+                        </button>
                       </div>
                       
                       <p className="text-xs text-gray-600 mt-3">
-                        Just type <strong>"all"</strong>, <strong>"this month"</strong>, or <strong>"custom"</strong> to choose. 
-                        Or tell me what time period you'd like to see!
+                        Click on any option above to get started, or type <strong>"all"</strong>, <strong>"this month"</strong>, or <strong>"custom"</strong> to choose.
                       </p>
                     </div>
                   </div>
@@ -2677,38 +3588,49 @@ const AIChat = ({ onGenerateReport }) => {
                       </p>
                       
                       <div className="space-y-2">
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleEventParticipantsReportTypeSelection('list')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-blue-200 transition-colors">
                             <i className="fa-solid fa-list text-blue-600 text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-blue-800">
                               📋 <strong>Event List</strong> - Simple list of all events
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-blue-600">
                               Perfect for getting a quick overview. Shows event titles, dates, locations, and participant counts.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-blue-500 transition-colors"></i>
                         </div>
+                        </button>
                         
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <button 
+                          onClick={() => handleEventParticipantsReportTypeSelection('participants')}
+                          className="w-full flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-green-200 transition-colors">
                             <i className="fa-solid fa-users text-green-600 text-xs"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800 mb-1 group-hover:text-green-800">
                               👥 <strong>Event Participants</strong> - List of event participants
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 group-hover:text-green-600">
                               Perfect for detailed records. Shows individual participant information, event details, and attendance data.
                             </p>
                           </div>
+                          <div className="flex items-center">
+                            <i className="fa-solid fa-arrow-right text-gray-400 group-hover:text-green-500 transition-colors"></i>
                         </div>
+                        </button>
                       </div>
                       
                       <p className="text-xs text-gray-600 mt-3">
-                        Just type <strong>"event list"</strong> or <strong>"participants"</strong> to choose. 
-                        Or tell me which one you prefer!
+                        Click on either option above to get started, or type <strong>"event list"</strong> or <strong>"participants"</strong> to choose.
                       </p>
                     </div>
                   </div>
@@ -2761,65 +3683,7 @@ const AIChat = ({ onGenerateReport }) => {
                   </div>
                 )}
                 
-                {/* Event participants date options */}
-                {message.showEventParticipantsDateOptions && waitingForEventParticipantsDateRange && (
-                  <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
-                    <div className="space-y-3">
-                      <p className="text-sm text-gray-700 mb-3">
-                        📅 For the Event Participants List Report, what time period would you like to include?
-                      </p>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <i className="fa-solid fa-database text-[#E5B80B] text-xs"></i>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
-                              📊 <strong>All Data</strong> - Complete event participants history
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Shows all event participants who have ever registered for events.
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <i className="fa-solid fa-clock text-[#E5B80B] text-xs"></i>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
-                              ⏰ <strong>Last 1 Month</strong> - Recent event participants only
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Shows event participants from the past 30 days for recent analysis.
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="w-6 h-6 bg-[#E5B80B]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <i className="fa-solid fa-calendar-days text-[#E5B80B] text-xs"></i>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 mb-1">
-                              📅 <strong>Custom Range</strong> - Specific date period
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Choose your own start and end dates for precise analysis.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <p className="text-xs text-gray-600 mt-3">
-                        Just type <strong>"all"</strong>, <strong>"last month"</strong>, or <strong>"custom"</strong> to choose. 
-                        Or tell me what time period you'd like to see!
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {/* Event participants date options - REMOVED - not needed for participants report */}
                 
                 {/* Custom date picker for visitor reports */}
                 {message.showCustomDatePicker && waitingForVisitorDateRange && (
@@ -2973,6 +3837,162 @@ const AIChat = ({ onGenerateReport }) => {
                   </div>
                 )}
                 
+                {/* Custom date picker for donation reports */}
+                {message.showDonationCustomDatePicker && waitingForDonationDateRange && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-[#E5B80B]/5 to-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-xl">
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-700 mb-3">
+                        📅 Select your custom date range for the donation report:
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            <i className="fa-solid fa-play mr-1 text-green-600"></i>
+                            Start Date
+                            {donationStartDate && (
+                              <span className="ml-2 text-xs text-green-600 font-normal">
+                                ({donationStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                              </span>
+                            )}
+                          </label>
+                          <DatePicker
+                            selected={donationStartDate}
+                            onChange={(date) => {
+                              setDonationStartDate(date);
+                              // If end date is before new start date, clear it
+                              if (donationEndDate && date && date > donationEndDate) {
+                                setDonationEndDate(null);
+                              }
+                            }}
+                            maxDate={donationEndDate || undefined}
+                            dateFormat="dd/MM/yyyy"
+                            className="w-full p-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all"
+                            placeholderText="Select start date"
+                            showMonthDropdown
+                            showYearDropdown
+                            dropdownMode="scroll"
+                            scrollableYearDropdown
+                            scrollableMonthDropdown
+                            yearDropdownItemNumber={15}
+                          />
+                          {donationStartDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Selected: {donationStartDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            <i className="fa-solid fa-stop mr-1 text-red-600"></i>
+                            End Date
+                            {donationEndDate && (
+                              <span className="ml-2 text-xs text-red-600 font-normal">
+                                ({donationEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                              </span>
+                            )}
+                            {donationStartDate && !donationEndDate && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">
+                                (Start: {donationStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                              </span>
+                            )}
+                          </label>
+                          <div className="relative">
+                            <DatePicker
+                              selected={donationEndDate}
+                              onChange={(date) => setDonationEndDate(date)}
+                              minDate={donationStartDate || undefined}
+                              startDate={donationStartDate || undefined}
+                              highlightDates={donationStartDate ? [donationStartDate] : []}
+                              openToDate={donationStartDate || new Date()}
+                              dateFormat="dd/MM/yyyy"
+                              className="w-full p-3 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] transition-all"
+                              placeholderText="Select end date"
+                              showMonthDropdown
+                              showYearDropdown
+                              dropdownMode="scroll"
+                              scrollableYearDropdown
+                              scrollableMonthDropdown
+                              yearDropdownItemNumber={15}
+                              title={donationStartDate ? `Select end date. Start date is ${donationStartDate.toLocaleDateString()} - dates before this are disabled in the calendar.` : 'Select end date'}
+                              popperModifiers={[
+                                {
+                                  name: "offset",
+                                  options: {
+                                    offset: [0, 8]
+                                  }
+                                }
+                              ]}
+                            />
+                          </div>
+                          {donationEndDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Selected: {donationEndDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                          {donationStartDate && !donationEndDate && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">
+                              💡 Start date selected: {donationStartDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {donationStartDate && donationEndDate && (
+                        <div className="mt-3 p-3 bg-[#E5B80B]/10 border border-[#E5B80B]/30 rounded-lg">
+                          <p className="text-xs font-medium text-gray-700">
+                            📊 Date Range: <span className="text-[#E5B80B] font-bold">
+                              {new Date(donationStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} 
+                              {' → '}
+                              {new Date(donationEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {Math.ceil((new Date(donationEndDate) - new Date(donationStartDate)) / (1000 * 60 * 60 * 24)) + 1} days selected
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#E5B80B]/20">
+                        <div className="text-xs text-gray-600 flex items-center">
+                          <div className="w-4 h-4 bg-[#E5B80B]/20 rounded-full flex items-center justify-center mr-2">
+                            <i className="fa-solid fa-info text-[#E5B80B] text-xs"></i>
+                          </div>
+                          {donationStartDate && donationEndDate ? 'Ready to generate report!' : 'Select both dates to continue'}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setWaitingForDonationDateRange(false);
+                              setDonationStartDate('');
+                              setDonationEndDate('');
+                            }}
+                            className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            <i className="fa-solid fa-times mr-1"></i>
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (donationStartDate && donationEndDate) {
+                                const startDateStr = donationStartDate.toISOString().split('T')[0];
+                                const endDateStr = donationEndDate.toISOString().split('T')[0];
+                                handleDonationDateRangeSelection(startDateStr, endDateStr);
+                              }
+                            }}
+                            disabled={!donationStartDate || !donationEndDate}
+                            className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg text-xs font-medium hover:bg-[#D4AF37] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            <i className="fa-solid fa-play text-xs"></i>
+                            Generate Report
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Action buttons for AI messages */}
                 {message.actions && message.actions.length > 0 && (
                   <div className="mt-3 space-y-2">
@@ -3044,7 +4064,7 @@ const AIChat = ({ onGenerateReport }) => {
       {/* Quick Actions */}
       <div className="px-3 py-2 border-t border-gray-200 bg-gray-50">
         <div className="flex flex-wrap gap-2">
-          {getFilteredQuickActions().slice(0, 4).map((action, index) => (
+          {getFilteredQuickActions().slice(0, 5).map((action, index) => (
             <button
               key={index}
               onClick={action.action}

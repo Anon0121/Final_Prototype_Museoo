@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Museum of Cagayan de Oro - Infographic Tarpaulin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Telegraf:wght@300;400;500;600;700;800;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lora', serif;
+            background: #e5e5e5;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Tarpaulin Container - 3ft x 6ft (36in x 72in) */
+        .tarpaulin {
+            width: 36in;
+            height: 72in;
+            background: linear-gradient(180deg, #F5F5DC 0%, #ffffff 30%, #F5E6D3 70%, #F5F5DC 100%);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Background Pattern */
+        .tarpaulin::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(circle at 3px 3px, rgba(229, 184, 11, 0.08) 1.5px, transparent 0);
+            background-size: 50px 50px;
+            z-index: 0;
+            opacity: 0.6;
+        }
+
+        /* Header Section */
+        .header {
+            background: linear-gradient(135deg, #351E10 0%, #2A1A0D 50%, #1A0F08 100%);
+            color: white;
+            padding: 45px 60px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(229, 184, 11, 0.12) 0%, transparent 70%);
+            animation: rotate 25s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .museum-name {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 78px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.7);
+            letter-spacing: 4px;
+            line-height: 1.1;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 42px;
+            font-weight: 700;
+            color: #E5B80B;
+            margin-bottom: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .tagline {
+            font-family: 'Lora', serif;
+            font-size: 28px;
+            font-style: italic;
+            opacity: 0.95;
+            font-weight: 400;
+            margin-top: 8px;
+            color: rgba(255,255,255,0.92);
+        }
+
+        .gold-accent {
+            width: 200px;
+            height: 8px;
+            background: linear-gradient(90deg, #E5B80B 0%, #D4AF37 50%, #E5B80B 100%);
+            margin: 22px auto;
+            border-radius: 4px;
+            box-shadow: 0 3px 12px rgba(229, 184, 11, 0.6);
+        }
+
+        /* Stats Banner */
+        .stats-banner {
+            background: linear-gradient(90deg, #E5B80B 0%, #D4AF37 100%);
+            padding: 38px 60px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 5px 18px rgba(0,0,0,0.25);
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-number {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 68px;
+            font-weight: 900;
+            color: #351E10;
+            line-height: 1;
+            margin-bottom: 8px;
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.4);
+        }
+
+        .stat-label {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 20px;
+            color: #351E10;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .stat-divider {
+            width: 2px;
+            height: 55px;
+            background: rgba(53, 30, 16, 0.35);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 50px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 45px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* System Title */
+        .system-title {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .system-title h2 {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 58px;
+            color: #351E10;
+            font-weight: 800;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .system-title p {
+            font-family: 'Lora', serif;
+            font-size: 30px;
+            color: #666;
+            font-weight: 500;
+            font-style: italic;
+        }
+
+        /* Features Grid - Infographic Style */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+            margin-top: 30px;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #ffffff 0%, #F5F5DC 100%);
+            border: 4px solid transparent;
+            border-image: linear-gradient(135deg, #E5B80B, #D4AF37) 1;
+            padding: 32px 28px;
+            border-radius: 18px;
+            box-shadow: 0 8px 25px rgba(53, 30, 16, 0.15);
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #E5B80B, #D4AF37);
+        }
+
+        .feature-icon {
+            font-size: 68px;
+            margin-bottom: 18px;
+            display: block;
+            filter: drop-shadow(3px 3px 5px rgba(0,0,0,0.15));
+        }
+
+        .feature-title {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 32px;
+            color: #351E10;
+            font-weight: 700;
+            margin-bottom: 10px;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .feature-description {
+            font-family: 'Lora', serif;
+            font-size: 20px;
+            color: #555;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+
+        /* Visual Statistics Section */
+        .visual-stats {
+            background: linear-gradient(135deg, #ffffff 0%, #F5F5DC 100%);
+            padding: 45px;
+            border-radius: 22px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            margin-top: 20px;
+            border: 3px solid #E5B80B;
+        }
+
+        .visual-stats-title {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 48px;
+            color: #351E10;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 38px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 28px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 32px;
+            border-radius: 15px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+            border-left: 7px solid #E5B80B;
+        }
+
+        .stat-card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 18px;
+        }
+
+        .stat-card-icon {
+            font-size: 44px;
+            color: #E5B80B;
+        }
+
+        .stat-card-title {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 26px;
+            color: #351E10;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-top: 12px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-family: 'Lora', serif;
+            font-size: 18px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .progress-bar {
+            height: 32px;
+            background: #e0e0e0;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #E5B80B, #D4AF37);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 12px;
+            color: #351E10;
+            font-family: 'Telegraf', sans-serif;
+            font-weight: 800;
+            font-size: 16px;
+            box-shadow: 0 2px 8px rgba(229, 184, 11, 0.4);
+        }
+
+        .progress-100 { width: 100%; }
+        .progress-95 { width: 95%; }
+        .progress-90 { width: 90%; }
+        .progress-98 { width: 98%; }
+
+        /* Benefits Grid */
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 30px;
+        }
+
+        .benefit-card {
+            background: linear-gradient(135deg, #351E10 0%, #2A1A0D 100%);
+            color: white;
+            padding: 28px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 22px rgba(53, 30, 16, 0.35);
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #E5B80B;
+        }
+
+        .benefit-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(229, 184, 11, 0.15) 0%, transparent 70%);
+        }
+
+        .benefit-icon {
+            font-size: 52px;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+            color: #E5B80B;
+        }
+
+        .benefit-text {
+            font-family: 'Lora', serif;
+            font-size: 22px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+            line-height: 1.4;
+        }
+
+        /* QR Code Section */
+        .qr-section {
+            text-align: center;
+            padding: 38px;
+            background: linear-gradient(135deg, #ffffff 0%, #F5F5DC 100%);
+            border-radius: 20px;
+            margin-top: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+            border: 4px solid #E5B80B;
+        }
+
+        .qr-placeholder {
+            width: 280px;
+            height: 280px;
+            background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+            border: 6px solid #E5B80B;
+            border-radius: 15px;
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Telegraf', sans-serif;
+            font-size: 18px;
+            color: #999;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+        }
+
+        .qr-text {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 30px;
+            color: #351E10;
+            font-weight: 700;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        /* Footer */
+        .footer {
+            background: linear-gradient(135deg, #351E10 0%, #2A1A0D 100%);
+            color: white;
+            padding: 38px 60px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin-bottom: 22px;
+        }
+
+        .footer-item {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .footer-label {
+            font-family: 'Telegraf', sans-serif;
+            font-size: 18px;
+            color: #E5B80B;
+            margin-bottom: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .footer-value {
+            font-family: 'Lora', serif;
+            font-size: 22px;
+            font-weight: 400;
+        }
+
+        .footer-divider {
+            width: 2px;
+            height: 55px;
+            background: rgba(229, 184, 11, 0.35);
+        }
+
+        .copyright {
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 2px solid rgba(229, 184, 11, 0.35);
+            font-family: 'Lora', serif;
+            font-size: 18px;
+            opacity: 0.85;
+        }
+
+        /* Decorative Elements */
+        .decorative-corner {
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border: 6px solid #E5B80B;
+            z-index: 2;
+        }
+
+        .corner-top-left {
+            top: 12px;
+            left: 12px;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-top-right {
+            top: 12px;
+            right: 12px;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .corner-bottom-left {
+            bottom: 12px;
+            left: 12px;
+            border-right: none;
+            border-top: none;
+        }
+
+        .corner-bottom-right {
+            bottom: 12px;
+            right: 12px;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                padding: 0;
+                background: white;
+            }
+            
+            .tarpaulin {
+                box-shadow: none;
+                width: 100%;
+                height: 100%;
+            }
+
+            @page {
+                size: 36in 72in;
+                margin: 0;
+            }
+        }
+
+        /* Responsive adjustments for preview */
+        @media screen and (max-width: 1400px) {
+            .tarpaulin {
+                width: 100%;
+                height: auto;
+                max-width: 1200px;
+                transform: scale(0.8);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tarpaulin">
+        <!-- Decorative Corners -->
+        <div class="decorative-corner corner-top-left"></div>
+        <div class="decorative-corner corner-top-right"></div>
+        <div class="decorative-corner corner-bottom-left"></div>
+        <div class="decorative-corner corner-bottom-right"></div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="museum-name">CITY MUSEUM</h1>
+                <div class="subtitle">CAGAYAN DE ORO</div>
+                <div class="gold-accent"></div>
+                <p class="tagline">Heritage Studies Center</p>
+            </div>
+        </header>
+
+        <!-- Stats Banner -->
+        <div class="stats-banner">
+            <div class="stat-item">
+                <div class="stat-number">6</div>
+                <div class="stat-label">Core Modules</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-number">100%</div>
+                <div class="stat-label">Digital</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">Access</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-number">∞</div>
+                <div class="stat-label">Scalable</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- System Title -->
+            <div class="system-title">
+                <h2>Integrated Museum Management System</h2>
+                <p>Integrating Technology for Heritage Preservation</p>
+            </div>
+
+            <!-- Features Grid -->
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎫</div>
+                    <h3 class="feature-title">Visitor Management</h3>
+                    <p class="feature-description">QR Code Check-in & Real-time Tracking</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3 class="feature-title">Analytics & Reports</h3>
+                    <p class="feature-description">Comprehensive Data Analysis & Insights</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎭</div>
+                    <h3 class="feature-title">Event Management</h3>
+                    <p class="feature-description">Planning & Performance Tracking</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">💎</div>
+                    <h3 class="feature-title">Cultural Objects</h3>
+                    <p class="feature-description">Digital Catalog & Maintenance</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">💝</div>
+                    <h3 class="feature-title">Donation System</h3>
+                    <p class="feature-description">Complete Workflow Management</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📁</div>
+                    <h3 class="feature-title">Digital Archives</h3>
+                    <p class="feature-description">Secure Preservation System</p>
+                </div>
+            </div>
+
+            <!-- Visual Statistics -->
+            <div class="visual-stats">
+                <h2 class="visual-stats-title">System Capabilities</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-card-icon">📈</span>
+                            <h3 class="stat-card-title">Efficiency</h3>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>System Performance</span>
+                                <span>95%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill progress-95">95%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-card-icon">🔒</span>
+                            <h3 class="stat-card-title">Security</h3>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>Data Protection</span>
+                                <span>100%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill progress-100">100%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-card-icon">⚡</span>
+                            <h3 class="stat-card-title">Speed</h3>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>Response Time</span>
+                                <span>90%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill progress-90">90%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-card-icon">🎯</span>
+                            <h3 class="stat-card-title">Accuracy</h3>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>Data Accuracy</span>
+                                <span>98%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill progress-98">98%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Benefits Grid -->
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Real-time Analytics</div>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Automated Reports</div>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Smart Scheduling</div>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Digital Records</div>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Maintenance Tracking</div>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Secure Management</div>
+                </div>
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="qr-section">
+                <div class="qr-placeholder">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📱</div>
+                    <div>[QR CODE]</div>
+                    <div style="font-size: 16px; margin-top: 10px;">Scan to Learn More</div>
+                </div>
+                <p class="qr-text">Scan for More Information</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-item">
+                    <div class="footer-label">📍 Location</div>
+                    <div class="footer-value">Cagayan de Oro City, Philippines</div>
+                </div>
+                <div class="footer-divider"></div>
+                <div class="footer-item">
+                    <div class="footer-label">✉️ Email</div>
+                    <div class="footer-value">info@cdomuseum.gov.ph</div>
+                </div>
+                <div class="footer-divider"></div>
+                <div class="footer-item">
+                    <div class="footer-label">🌐 Website</div>
+                    <div class="footer-value">www.cdomuseum.gov.ph</div>
+                </div>
+            </div>
+            <div class="copyright">
+                © 2025 City Museum of Cagayan de Oro - Heritage Studies Center. All rights reserved.
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

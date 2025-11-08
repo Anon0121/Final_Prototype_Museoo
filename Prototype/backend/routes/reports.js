@@ -6,8 +6,12 @@ const pool = require('../db');
 const { logActivity } = require('../utils/activityLogger');
 const { generateReportPDF } = require('../utils/pdfGenerator');
 const { generateCleanVisitorReportPDF } = require('../utils/cleanVisitorReportGenerator');
-const { generateCulturalObjectReportPDF } = require('../utils/culturalObjectReportGenerator');
+const { generateCulturalObjectReportPDF, generateCulturalObjectReportPDFSimple } = require('../utils/culturalObjectReportGenerator');
 const { generateArchiveReportPDF } = require('../utils/archiveReportGenerator');
+const { generateDonationReportPDF, generateDonationReportPDFSimple } = require('../utils/donationReportGenerator');
+const { generateMonetaryDonationReportPDF, generateMonetaryDonationReportPDFSimple } = require('../utils/monetaryDonationReportGenerator');
+const { generateArtifactDonationReportPDF, generateArtifactDonationReportPDFSimple } = require('../utils/artifactDonationReportGenerator');
+const { generateLoanArtifactDonationReportPDF, generateLoanArtifactDonationReportPDFSimple } = require('../utils/loanArtifactDonationReportGenerator');
 const { generateBrandedReportHTML } = require('../utils/brandedReportGenerator');
 const { htmlToPdfBuffer } = require('../utils/htmlToPdf');
 const { getFallbackReport, handleVaguePrompt } = require('../utils/reportTemplates');
@@ -54,18 +58,20 @@ router.get('/', isAuthenticated, async (req, res) => {
 
 // Generate AI-powered report
 router.post('/generate', isAuthenticated, async (req, res) => {
-  // Set a timeout for the response
+  // Set a timeout for the response - increased for complex reports
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
       res.status(408).json({
         success: false,
-        message: 'Report generation timeout - please try again with a smaller date range'
+        message: 'Report generation timeout - please try again with a smaller date range or contact support'
       });
     }
-  }, 30000); // 30 second timeout
+  }, 120000); // 2 minute timeout for complex report generation
 
   try {
-    const { reportType, startDate, endDate, includeCharts, includeRecommendations, includePredictions, includeComparisons, prompt, year, month } = req.body;
+    const { reportType, startDate, endDate, includeCharts, includeRecommendations, includePredictions, includeComparisons, prompt, year, month, donationType } = req.body;
+
+    console.log('🔍 Debug: Received report request:', { reportType, startDate, endDate, includeCharts, includeRecommendations, includePredictions, includeComparisons, prompt, year, month, donationType });
 
     // Validate required fields
     if (!reportType) {
@@ -97,6 +103,8 @@ router.post('/generate', isAuthenticated, async (req, res) => {
     let reportTitle = '';
     let reportDescription = '';
 
+    console.log('🔍 Debug: Processing report type:', reportType);
+    
     switch (reportType) {
       case 'visitor_analytics':
         console.log('📊 Generating visitor analytics data...');
@@ -196,9 +204,37 @@ router.post('/generate', isAuthenticated, async (req, res) => {
         break;
       
       case 'event_list':
-        reportData = await generateEventList(startDate, endDate);
-        reportTitle = 'Event List Report';
-        reportDescription = `Complete list of all events with details from ${startDate} to ${endDate}`;
+        console.log('🔍 Debug: Starting event_list generation with dates:', startDate, endDate);
+        try {
+          reportData = await generateEventList(startDate, endDate);
+          console.log('🔍 Debug: Event list data generated successfully:', Object.keys(reportData));
+          reportTitle = 'Event List Report';
+          reportDescription = `Complete list of all events with details from ${startDate} to ${endDate}`;
+        } catch (error) {
+          console.error('❌ Error in generateEventList:', error);
+          throw error;
+        }
+        break;
+      
+      case 'event_participants':
+        console.log('🔍 Debug: Starting event_participants generation with eventId:', req.body.eventId);
+        try {
+          const { eventId } = req.body;
+          if (!eventId) {
+            throw new Error('Event ID is required for participant report');
+          }
+          console.log('🔍 Debug: About to call generateEventParticipants with eventId:', eventId);
+          reportData = await generateEventParticipants(eventId);
+          console.log('🔍 Debug: Event participants data generated successfully:', Object.keys(reportData));
+          console.log('🔍 Debug: Event title:', reportData.event?.title);
+          console.log('🔍 Debug: Participants count:', reportData.totalParticipants);
+          reportTitle = 'Event Participants Report';
+          reportDescription = `List of participants for the selected event`;
+        } catch (error) {
+          console.error('❌ Error in generateEventParticipants:', error);
+          console.error('❌ Error stack:', error.stack);
+          throw error;
+        }
         break;
       
       // cultural_objects_inventory case removed - now handled by cultural_objects case
@@ -206,21 +242,63 @@ router.post('/generate', isAuthenticated, async (req, res) => {
       // archive_list case removed - now handled by archive_analytics case
       
       case 'donation_list':
-        reportData = await generateDonationList(startDate, endDate);
+        reportData = await generateDonationList(effectiveStartDate, effectiveEndDate);
         reportTitle = 'Donation List Report';
-        reportDescription = `Complete list of all donations and contributions from ${startDate} to ${endDate}`;
+        reportDescription = isAllDataRequest ? 
+          `Complete list of all completed donations and contributions` : 
+          `Complete list of all donations and contributions from ${startDate} to ${endDate}`;
         break;
       
       case 'donation_report':
-        reportData = await generateDonationList(startDate, endDate);
-        reportTitle = 'Donation Report';
-        reportDescription = `Complete analysis of all donations and contributions from ${startDate} to ${endDate}`;
+        // Use generateDonationListByType if donationType is specified to properly filter by date and type
+        if (donationType && donationType !== 'all') {
+          // For "all data" requests, pass null or 'all' instead of wide date range
+          const typeStartDate = isAllDataRequest ? null : effectiveStartDate;
+          const typeEndDate = isAllDataRequest ? null : effectiveEndDate;
+          console.log(`📅 Calling generateDonationListByType with dates: ${typeStartDate} to ${typeEndDate}, type: ${donationType}`);
+          reportData = await generateDonationListByType(typeStartDate, typeEndDate, donationType);
+          reportData.donationType = donationType; // Add donationType to reportData
+        } else {
+          // For "all data" requests, pass null or 'all' instead of wide date range
+          const listStartDate = isAllDataRequest ? null : effectiveStartDate;
+          const listEndDate = isAllDataRequest ? null : effectiveEndDate;
+          reportData = await generateDonationList(listStartDate, listEndDate);
+          if (donationType) {
+            reportData.donationType = donationType; // Add donationType to reportData
+          }
+        }
+        
+        // Set specific report titles based on donation type
+        if (donationType === 'monetary') {
+          reportTitle = 'Monetary Donations Report';
+        } else if (donationType === 'artifact') {
+          reportTitle = 'Artifact Donation Report';
+        } else if (donationType === 'loan') {
+          reportTitle = 'Loan Artifact Donation Report';
+        } else {
+          reportTitle = 'All Types Donation Report';
+        }
+        
+        reportDescription = isAllDataRequest ? 
+          `Complete analysis of all completed donations and contributions` : 
+          `Complete analysis of all donations and contributions from ${startDate} to ${endDate}`;
         break;
       
       case 'donation_type_report':
-        const { donationType } = req.body;
-        reportData = await generateDonationListByType(startDate, endDate, donationType);
-        reportTitle = `${donationType.charAt(0).toUpperCase() + donationType.slice(1)} Donations Report`;
+        reportData = await generateDonationListByType(effectiveStartDate, effectiveEndDate, donationType);
+        reportData.donationType = donationType; // Add donationType to reportData
+        
+        // Set specific report titles based on donation type
+        if (donationType === 'monetary') {
+          reportTitle = 'Monetary Donations Report';
+        } else if (donationType === 'artifact') {
+          reportTitle = 'Artifact Donation Report';
+        } else if (donationType === 'loan') {
+          reportTitle = 'Loan Artifact Donation Report';
+        } else {
+          reportTitle = 'All Types Donation Report';
+        }
+        
         reportDescription = `Complete list of ${donationType} donations from ${startDate} to ${endDate}`;
         break;
       
@@ -287,7 +365,8 @@ router.post('/generate', isAuthenticated, async (req, res) => {
       start_date: startDate,
       end_date: endDate,
       created_at: new Date().toISOString(),
-      data: JSON.stringify(reportData)
+      data: JSON.stringify(reportData),
+      donationType: donationType // Add donationType to the report object
     };
     // Use specific templates for different report types
     let reportContent;
@@ -301,13 +380,62 @@ router.post('/generate', isAuthenticated, async (req, res) => {
       // Use clean visitor report generator for simple list
       reportContent = generateCleanVisitorReportPDF(reportObject);
     } else if (reportType === 'cultural_objects' || reportType === 'cultural_objects_report' || reportType === 'exhibit_analytics' || reportTitle?.toLowerCase().includes('cultural')) {
-      reportContent = generateCulturalObjectReportPDF(reportObject);
+      // Use simple version without base64 images for database storage to avoid max_allowed_packet error
+      reportContent = generateCulturalObjectReportPDFSimple(reportObject);
+    } else if (reportType === 'donation_report' || reportType === 'donation_list' || reportType === 'donation_type_report' || reportTitle?.toLowerCase().includes('donation')) {
+      // Use specific generators based on donation type (simplified versions for database storage to avoid max_allowed_packet error)
+      if (reportData?.donationType === 'monetary') {
+        reportContent = generateMonetaryDonationReportPDFSimple(reportObject);
+      } else if (reportData?.donationType === 'artifact') {
+        reportContent = await generateArtifactDonationReportPDFSimple(reportObject);
+      } else if (reportData?.donationType === 'loan') {
+        reportContent = await generateLoanArtifactDonationReportPDFSimple(reportObject);
+      } else {
+        // Use comprehensive donation report for all types or all
+        reportContent = await generateDonationReportPDFSimple(reportObject);
+      }
     } else {
       reportContent = generateHTMLReport(reportObject);
     }
 
     // Save report to database
     console.log('💾 Saving report for user:', req.user.id);
+    
+    // For event participants reports, use the event date as start_date and end_date
+    // For "all data" requests, use a wide date range for database storage (columns are NOT NULL)
+    // But we still pass null to query functions to skip date filtering
+    let reportStartDate = startDate;
+    let reportEndDate = endDate;
+    
+    // Handle invalid dates (like '1899' dates) or 'all' - use wide date range for database
+    if (isAllDataRequest || !reportStartDate || reportStartDate === 'all' || reportStartDate === 'null' || 
+        (reportStartDate && reportStartDate.includes('1899'))) {
+      reportStartDate = '1900-01-01'; // Use wide date range start for "all data"
+    }
+    if (isAllDataRequest || !reportEndDate || reportEndDate === 'all' || reportEndDate === 'null' || 
+        (reportEndDate && reportEndDate.includes('1899'))) {
+      reportEndDate = '2100-12-31'; // Use wide date range end for "all data"
+    }
+    
+    if (reportType === 'event_participants' && reportData.event) {
+      // Use the event's start_date for both start and end dates
+      reportStartDate = reportData.event.start_date || new Date().toISOString().split('T')[0];
+      reportEndDate = reportData.event.start_date || new Date().toISOString().split('T')[0];
+      console.log('🔍 Debug: Using event date for report dates:', reportStartDate, reportEndDate);
+    }
+    
+    // Final validation - ensure dates are never null (database constraint)
+    if (!reportStartDate || reportStartDate === 'null' || reportStartDate === null) {
+      reportStartDate = '1900-01-01';
+      console.log('⚠️ reportStartDate was null/invalid, using default: 1900-01-01');
+    }
+    if (!reportEndDate || reportEndDate === 'null' || reportEndDate === null) {
+      reportEndDate = '2100-12-31';
+      console.log('⚠️ reportEndDate was null/invalid, using default: 2100-12-31');
+    }
+    
+    console.log(`📅 Saving report with dates: startDate=${reportStartDate}, endDate=${reportEndDate}`);
+    
     const [result] = await db.query(`
       INSERT INTO reports (user_id, title, description, report_type, start_date, end_date, content, data, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -316,8 +444,8 @@ router.post('/generate', isAuthenticated, async (req, res) => {
       reportTitle,
       reportDescription,
       reportType,
-      startDate,
-      endDate,
+      reportStartDate,
+      reportEndDate,
       reportContent,
       JSON.stringify(reportData)
     ]);
@@ -355,14 +483,43 @@ router.post('/generate', isAuthenticated, async (req, res) => {
       } else if (reportType === 'archive_analytics' || reportType === 'archive_report' || reportTitle?.toLowerCase().includes('archive')) {
         console.log('📁 Using Archive Report PDF format for report type:', reportType);
         htmlContent = generateArchiveReportPDF(tempReport);
+      } else if (reportType === 'donation_report' || reportType === 'donation_list' || reportType === 'donation_type_report' || reportTitle?.toLowerCase().includes('donation')) {
+        // Use specific generators based on donation type
+        if (tempReportData?.donationType === 'monetary') {
+          console.log('💰 Using Monetary Donation Report PDF format for report type:', reportType);
+          htmlContent = generateMonetaryDonationReportPDF(tempReport);
+        } else if (tempReportData?.donationType === 'artifact') {
+          console.log('🎯 Using Artifact Donation Report PDF format for report type:', reportType);
+          htmlContent = await generateArtifactDonationReportPDF(tempReport);
+        } else if (tempReportData?.donationType === 'loan') {
+          console.log('📦 Using Loan Artifact Donation Report PDF format for report type:', reportType);
+          htmlContent = await generateLoanArtifactDonationReportPDF(tempReport);
+        } else {
+          console.log('💰 Using Donation Report PDF format for report type:', reportType);
+          htmlContent = await generateDonationReportPDF(tempReport);
+        }
       } else if (reportType === 'event_list') {
         console.log('📋 Using Simple Event List Report PDF format for report type:', reportType);
-        const { generateEventListReport } = require('../utils/simpleEventReportGenerator');
-        htmlContent = generateEventListReport(tempReport);
+        try {
+          const { generateEventListReport } = require('../utils/simpleEventReportGenerator');
+          htmlContent = generateEventListReport(tempReport);
+          console.log('📋 Event list HTML generated successfully, length:', htmlContent.length);
+        } catch (error) {
+          console.error('❌ Error generating event list HTML:', error);
+          throw error;
+        }
       } else if (reportType === 'event_participants') {
         console.log('👥 Using Event Participants Report PDF format for report type:', reportType);
-        const { generateEventParticipantsReport } = require('../utils/simpleEventReportGenerator');
-        htmlContent = generateEventParticipantsReport(tempReport);
+        try {
+          const { generateEventParticipantsReport } = require('../utils/simpleEventReportGenerator');
+          console.log('🔍 Debug: About to generate HTML for event participants');
+          htmlContent = generateEventParticipantsReport(tempReport);
+          console.log('🔍 Debug: HTML generated successfully, length:', htmlContent.length);
+        } catch (error) {
+          console.error('❌ Error generating event participants HTML:', error);
+          console.error('❌ Error stack:', error.stack);
+          throw error;
+        }
       } else {
         htmlContent = generateBrandedReportHTML(tempReport, reportData, aiInsights);
       }
@@ -444,10 +601,22 @@ router.post('/generate', isAuthenticated, async (req, res) => {
 
   } catch (error) {
     clearTimeout(timeout); // Clear the timeout
-    console.error('Error generating report:', error);
+    console.error('❌ Error generating report:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
+    
+    // Return more detailed error message for debugging
+    const errorMessage = error.sqlMessage || error.message || 'Failed to generate report';
     res.status(500).json({
       success: false,
-      message: 'Failed to generate report'
+      message: `Failed to generate report: ${errorMessage}`,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -694,6 +863,21 @@ router.get('/:id/download', isAuthenticated, async (req, res) => {
       } else if (report.report_type === 'archive_analytics' || report.report_type === 'archive_report' || report.title?.toLowerCase().includes('archive')) {
         console.log('📁 Using Archive Report PDF format for download, report type:', report.report_type);
         htmlContent = generateArchiveReportPDF(report);
+      } else if (report.report_type === 'donation_report' || report.report_type === 'donation_list' || report.report_type === 'donation_type_report' || report.title?.toLowerCase().includes('donation')) {
+        // Use specific generators based on donation type
+        if (reportData?.donationType === 'monetary') {
+          console.log('💰 Using Monetary Donation Report PDF format for download, report type:', report.report_type);
+          htmlContent = generateMonetaryDonationReportPDF(report);
+        } else if (reportData?.donationType === 'artifact') {
+          console.log('🎯 Using Artifact Donation Report PDF format for download, report type:', report.report_type);
+          htmlContent = await generateArtifactDonationReportPDF(report);
+        } else if (reportData?.donationType === 'loan') {
+          console.log('📦 Using Loan Artifact Donation Report PDF format for download, report type:', report.report_type);
+          htmlContent = await generateLoanArtifactDonationReportPDF(report);
+        } else {
+          console.log('💰 Using Donation Report PDF format for download, report type:', report.report_type);
+          htmlContent = await generateDonationReportPDF(report);
+        }
       } else if (report.report_type === 'event_list') {
         console.log('📋 Using Simple Event List Report PDF format for download, report type:', report.report_type);
         const { generateEventListReport } = require('../utils/simpleEventReportGenerator');
@@ -1618,13 +1802,13 @@ async function generateEventList(startDate, endDate) {
       a.title,
       a.description,
       a.type,
-      a.max_capacity,
-      a.current_registrations,
       a.created_at,
       ed.start_date,
       ed.time,
       ed.location,
-      ed.organizer
+      ed.organizer,
+      ed.max_capacity,
+      ed.current_registrations
     FROM activities a
     LEFT JOIN event_details ed ON a.id = ed.activity_id
     WHERE a.type = 'event' 
@@ -1639,13 +1823,13 @@ async function generateEventList(startDate, endDate) {
         a.title,
         a.description,
         a.type,
-        a.max_capacity,
-        a.current_registrations,
         a.created_at,
         ed.start_date,
         ed.time,
         ed.location,
-        ed.organizer
+        ed.organizer,
+        ed.max_capacity,
+        ed.current_registrations
       FROM activities a
       LEFT JOIN event_details ed ON a.id = ed.activity_id
       WHERE a.type = 'event'
@@ -1659,6 +1843,64 @@ async function generateEventList(startDate, endDate) {
     summary: {
       totalCapacity: events.reduce((sum, event) => sum + (event.max_capacity || 0), 0),
       totalRegistrations: events.reduce((sum, event) => sum + (event.current_registrations || 0), 0)
+    }
+  };
+}
+
+async function generateEventParticipants(eventId) {
+  console.log(`🎉 Generating event participants report for event ID: ${eventId}`);
+  
+  // Get event details
+  const [eventRows] = await db.query(`
+    SELECT 
+      a.id,
+      a.title,
+      a.description,
+      a.type,
+      a.created_at,
+      ed.start_date,
+      ed.time,
+      ed.location,
+      ed.organizer,
+      ed.max_capacity,
+      ed.current_registrations
+    FROM activities a
+    LEFT JOIN event_details ed ON a.id = ed.activity_id
+    WHERE a.id = ? AND a.type = 'event'
+  `, [eventId]);
+
+  if (eventRows.length === 0) {
+    throw new Error('Event not found');
+  }
+
+  const event = eventRows[0];
+
+  // Get participants/registrations for this event
+  const [participants] = await db.query(`
+    SELECT 
+      er.id,
+      er.firstname,
+      er.lastname,
+      er.email,
+      er.gender,
+      er.visitor_type,
+      er.registration_date,
+      er.status,
+      er.approval_status,
+      er.checkin_time
+    FROM event_registrations er
+    WHERE er.event_id = ?
+    ORDER BY er.registration_date DESC
+  `, [eventId]);
+
+  return {
+    event: event,
+    participants: participants,
+    totalParticipants: participants.length,
+    summary: {
+      totalCapacity: event.max_capacity || 0,
+      currentRegistrations: event.current_registrations || 0,
+      availableSlots: (event.max_capacity || 0) - (event.current_registrations || 0)
     }
   };
 }
@@ -2074,7 +2316,50 @@ function generateLegacyReportContent(data, insights, includeCharts, includePredi
 
 
 
-// DELETE report
+// DELETE all reports (must come before /:id route to avoid conflicts)
+router.delete('/delete-all', isAuthenticated, async (req, res) => {
+  console.log(`🗑️ Attempting to delete ALL reports`);
+  
+  try {
+    // First, get count of reports to delete
+    const [countResult] = await pool.query('SELECT COUNT(*) as total FROM reports');
+    const totalReports = countResult[0].total;
+    
+    if (totalReports === 0) {
+      console.log(`ℹ️ No reports found to delete`);
+      return res.json({ success: true, message: 'No reports found to delete', deletedCount: 0 });
+    }
+    
+    console.log(`🗑️ Found ${totalReports} reports to delete`);
+    
+    // Delete all reports from reports table
+    const [result] = await pool.query('DELETE FROM reports');
+    
+    console.log(`✅ Successfully deleted ${result.affectedRows} reports`);
+    
+    // Log the activity
+    try { 
+      await logActivity(req, 'report.delete_all', { 
+        deletedCount: result.affectedRows,
+        totalReports: totalReports 
+      }); 
+    } catch (logError) {
+      console.error('⚠️ Error logging delete all activity:', logError.message);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully deleted ${result.affectedRows} reports`,
+      deletedCount: result.affectedRows
+    });
+  } catch (err) {
+    console.error('❌ Error deleting all reports:', err);
+    console.error('❌ Error details:', err.message);
+    res.status(500).json({ success: false, error: 'Database error: ' + err.message });
+  }
+});
+
+// DELETE individual report
 router.delete('/:id', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   console.log(`🗑️ Attempting to delete report with ID: ${id}`);
@@ -2215,6 +2500,7 @@ module.exports = {
   generateStaffPerformance,
   generateVisitorList,
   generateEventList,
+  generateEventParticipants,
   generateEventAnalytics,
   generateEventAttendance
 }; 

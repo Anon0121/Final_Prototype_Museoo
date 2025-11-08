@@ -169,14 +169,17 @@ const Event = ({ userPermissions }) => {
     }
   };
 
+  const [deleteEventModal, setDeleteEventModal] = useState({ show: false, id: null });
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this event?")) return;
-    
+    setDeleteEventModal({ show: true, id: id });
+  };
+  const confirmDeleteEvent = async () => {
+    if (!deleteEventModal.id) return;
     try {
-      const res = await api.delete(`/api/activities/${id}`);
+      const res = await api.delete(`/api/activities/${deleteEventModal.id}`);
       
       if (res.data.success) {
-        setEvents(events.filter(event => event.id !== id));
+        setEvents(events.filter(event => event.id !== deleteEventModal.id));
         setNotification({
           show: true,
           type: 'success',
@@ -202,6 +205,8 @@ const Event = ({ userPermissions }) => {
         message: 'An unexpected error occurred. Please try again.',
         description: ''
       });
+    } finally {
+      setDeleteEventModal({ show: false, id: null });
     }
   };
 
@@ -300,11 +305,14 @@ const Event = ({ userPermissions }) => {
     return { total, pendingApproval, approved, checkedIn, local, tourist };
   };
 
+  const [approveModal, setApproveModal] = useState({ show: false, id: null });
   const handleApproveRegistration = async (registrationId) => {
-    if (!window.confirm("Are you sure you want to approve this registration?")) return;
-    
+    setApproveModal({ show: true, id: registrationId });
+  };
+  const confirmApproveRegistration = async () => {
+    if (!approveModal.id) return;
     try {
-      const response = await fetch(`http://localhost:3000/api/event-registrations/${registrationId}/approve`, {
+      const response = await fetch(`http://localhost:3000/api/event-registrations/${approveModal.id}/approve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -347,105 +355,64 @@ const Event = ({ userPermissions }) => {
         message: 'An unexpected error occurred. Please try again.',
         description: ''
       });
+    } finally {
+      setApproveModal({ show: false, id: null });
     }
   };
 
+  // Styled modal for participant rejection
+  const [rejectModal, setRejectModal] = useState({ show: false, id: null, reason: '' });
   const handleRejectRegistration = async (registrationId) => {
-    const rejectionReason = prompt("Please provide a reason for rejection (optional):");
-    if (rejectionReason === null) return;
-    
+    setRejectModal({ show: true, id: registrationId, reason: '' });
+  };
+  const confirmRejectRegistration = async () => {
+    if (!rejectModal.id) return;
     try {
-      const response = await fetch(`http://localhost:3000/api/event-registrations/${registrationId}/reject`, {
+      const response = await fetch(`http://localhost:3000/api/event-registrations/${rejectModal.id}/reject`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          rejected_by: 'Admin',
-          rejection_reason: rejectionReason || 'Registration rejected by admin'
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejected_by: 'Admin', rejection_reason: rejectModal.reason || '' })
       });
-      
       const data = await response.json();
-      
       if (data.success) {
-        setNotification({
-          show: true,
-          type: 'success',
-          title: 'Registration Rejected',
-          message: 'The participant registration has been rejected.',
-          description: ''
-        });
-        // Refresh both registrations and events data for real-time updates
-        if (selectedEventRegistrations.length > 0) {
-          fetchEventRegistrations(selectedEventRegistrations[0].event_id);
-        }
-        fetchEvents(); // Refresh events to update slot availability
+        setNotification({ show: true, type: 'success', title: 'Registration Rejected', message: 'The participant registration has been rejected.', description: '' });
+        if (selectedEventRegistrations.length > 0) fetchEventRegistrations(selectedEventRegistrations[0].event_id);
+        fetchEvents();
       } else {
-        setNotification({
-          show: true,
-          type: 'error',
-          title: 'Failed to Reject Registration',
-          message: data.error || 'There was an error rejecting the registration.',
-          description: ''
-        });
+        setNotification({ show: true, type: 'error', title: 'Failed to Reject Registration', message: data.error || 'There was an error rejecting the registration.', description: '' });
       }
     } catch (error) {
       console.error('Error rejecting registration:', error);
-      setNotification({
-        show: true,
-        type: 'error',
-        title: 'Error Rejecting Registration',
-        message: 'An unexpected error occurred. Please try again.',
-        description: ''
-      });
+      setNotification({ show: true, type: 'error', title: 'Error Rejecting Registration', message: 'An unexpected error occurred. Please try again.', description: '' });
+    } finally {
+      setRejectModal({ show: false, id: null, reason: '' });
     }
   };
 
+  const [deleteModal, setDeleteModal] = useState({ show: false, id: null });
   const handleDeleteRegistration = async (registrationId) => {
-    if (!window.confirm("Are you sure you want to delete this participant? This action cannot be undone.")) return;
-    
+    setDeleteModal({ show: true, id: registrationId });
+  };
+  const confirmDeleteRegistration = async () => {
+    if (!deleteModal.id) return;
     try {
-      const response = await fetch(`http://localhost:3000/api/event-registrations/${registrationId}`, {
+      const response = await fetch(`http://localhost:3000/api/event-registrations/${deleteModal.id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
-      
       const data = await response.json();
-      
       if (data.success) {
-        setNotification({
-          show: true,
-          type: 'success',
-          title: 'Participant Deleted!',
-          message: 'The participant has been permanently removed from the event.',
-          description: ''
-        });
-        // Refresh both registrations and events data for real-time updates
-        if (selectedEventRegistrations.length > 0) {
-          fetchEventRegistrations(selectedEventRegistrations[0].event_id);
-        }
-        fetchEvents(); // Refresh events to update slot availability
+        setNotification({ show: true, type: 'success', title: 'Participant Deleted!', message: 'The participant has been permanently removed from the event.', description: '' });
+        if (selectedEventRegistrations.length > 0) fetchEventRegistrations(selectedEventRegistrations[0].event_id);
+        fetchEvents();
       } else {
-        setNotification({
-          show: true,
-          type: 'error',
-          title: 'Failed to Delete Participant',
-          message: data.error || 'There was an error deleting the participant.',
-          description: ''
-        });
+        setNotification({ show: true, type: 'error', title: 'Failed to Delete Participant', message: data.error || 'There was an error deleting the participant.', description: '' });
       }
     } catch (error) {
       console.error('Error deleting registration:', error);
-      setNotification({
-        show: true,
-        type: 'error',
-        title: 'Error Deleting Participant',
-        message: 'An unexpected error occurred. Please try again.',
-        description: ''
-      });
+      setNotification({ show: true, type: 'error', title: 'Error Deleting Participant', message: 'An unexpected error occurred. Please try again.', description: '' });
+    } finally {
+      setDeleteModal({ show: false, id: null });
     }
   };
 
@@ -2059,6 +2026,196 @@ const Event = ({ userPermissions }) => {
           </div>
         </div>
       )}
+
+      {/* Participant Approval Modal */}
+      {approveModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-green-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-green-400 to-green-600">
+                <i className="fa-solid fa-check text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Approve Participant
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to approve this participant? A QR code will be generated and sent via email.
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setApproveModal({ show:false, id:null })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmApproveRegistration}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Participant Rejection Modal */}
+      {rejectModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-red-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-red-400 to-red-600">
+                <i className="fa-solid fa-times text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-6 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Reject Participant
+              </h3>
+              <p className="text-gray-600 text-lg mb-4" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Please provide a reason for rejection (optional):
+              </p>
+              <input
+                type="text"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300"
+                value={rejectModal.reason}
+                onChange={(e)=>setRejectModal({...rejectModal, reason: e.target.value})}
+                placeholder="e.g., Incomplete requirements"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              />
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setRejectModal({ show:false, id:null, reason:'' })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmRejectRegistration}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Participant Delete Modal */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-orange-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+                <i className="fa-solid fa-question text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Delete Participant
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to delete this participant?
+              </p>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                This action cannot be undone.
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setDeleteModal({ show:false, id:null })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteRegistration}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Event Modal */}
+      {deleteEventModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-orange-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+                <i className="fa-solid fa-question text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Delete Event
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to delete this event?
+              </p>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                This action cannot be undone.
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={()=>setDeleteEventModal({ show:false, id:null })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteEvent}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-check mr-2"></i>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2148,31 +2305,31 @@ const EventSection = ({ title, events, icon, color, onView, onDelete, onViewRegi
               <div className="flex justify-end gap-1">
                     <button
                       onClick={() => onView(event)}
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-green-100 hover:bg-green-200 text-green-600 rounded flex items-center justify-center transition-colors"
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-green-100 hover:bg-green-200 text-green-600 rounded-lg flex items-center justify-center transition-colors"
                   title="View Event"
                     >
-                  <i className="fa-solid fa-eye text-xs"></i>
+                  <i className="fa-solid fa-eye text-sm"></i>
                     </button>
                     <button
                       onClick={() => onEditEvent(event)}
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded flex items-center justify-center transition-colors"
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded-lg flex items-center justify-center transition-colors"
                   title="Edit Event"
                     >
-                  <i className="fa-solid fa-pen-to-square text-xs"></i>
+                  <i className="fa-solid fa-pen-to-square text-sm"></i>
                     </button>
                     <button
                       onClick={() => onViewRegistrations(event)}
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded flex items-center justify-center transition-colors"
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg flex items-center justify-center transition-colors"
                   title="View Registrations"
                     >
-                  <i className="fa-solid fa-users text-xs"></i>
+                  <i className="fa-solid fa-users text-sm"></i>
                     </button>
                     <button
                       onClick={() => onDelete(event.id)}
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors"
+                  className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg flex items-center justify-center transition-colors"
                   title="Delete Event"
                     >
-                  <i className="fa-solid fa-trash text-xs"></i>
+                  <i className="fa-solid fa-trash text-sm"></i>
                     </button>
                   </div>
             </div>

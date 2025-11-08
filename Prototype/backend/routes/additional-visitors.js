@@ -367,27 +367,39 @@ router.put('/:tokenId', async (req, res) => {
     // Instead of generating a new QR, we'll update the existing one
     const QRCode = require('qrcode');
     
-    // Get Juan's pre-generated QR code from the database
+    // IMPORTANT: Get the premade backup code from the database (not from QR code image)
+    // The backup code should already be stored in visitors.backup_code when booking was created
     const [visitorData] = await pool.query(
-      `SELECT qr_code FROM visitors WHERE email = ? AND booking_id = ? AND is_main_visitor = false`,
+      `SELECT qr_code, backup_code FROM visitors WHERE email = ? AND booking_id = ? AND is_main_visitor = false`,
       [tokenInfo.email, tokenInfo.booking_id]
     );
     
-    const existingQrCode = visitorData[0].qr_code;
-    console.log(`📱 Using Juan's pre-generated QR code`);
-    
-    // Extract backup code from QR code data
+    let existingQrCode = null;
     let shortBackupCode = null;
-    try {
-      const qrCodeData = Buffer.from(existingQrCode, 'base64').toString('utf-8');
-      const qrData = JSON.parse(qrCodeData);
-      console.log('🔍 QR Code data structure in form completion:', JSON.stringify(qrData, null, 2));
-      shortBackupCode = qrData.backupCode || qrData.visitorId;
-      console.log(`🔑 Extracted backup code from QR: ${shortBackupCode}`);
-    } catch (err) {
-      console.error('❌ Error extracting backup code from QR:', err);
-      console.error('❌ QR Code data (first 100 chars):', existingQrCode.substring(0, 100));
-      shortBackupCode = 'FALLBACK';
+    
+    if (visitorData.length > 0) {
+      existingQrCode = visitorData[0].qr_code;
+      // Use the backup code from the database (premade during booking)
+      shortBackupCode = visitorData[0].backup_code;
+      console.log(`✅ Found premade backup code in database: "${shortBackupCode}"`);
+      console.log(`📱 Using pre-generated QR code from database`);
+    }
+    
+    // If no backup code in database, try to extract from QR code (legacy support)
+    if (!shortBackupCode && existingQrCode) {
+      try {
+        // QR codes are PNG images, but the JSON data was embedded when creating it
+        // We can't easily decode PNG images, so this is a fallback
+        console.log('⚠️ No backup code in database, trying to extract from QR code...');
+        const qrCodeData = Buffer.from(existingQrCode, 'base64').toString('utf-8');
+        const qrData = JSON.parse(qrCodeData);
+        shortBackupCode = qrData.backupCode || qrData.visitorId;
+        console.log(`🔑 Extracted backup code from QR: ${shortBackupCode}`);
+      } catch (err) {
+        console.error('❌ Error extracting backup code from QR:', err);
+        // Don't use FALLBACK - use visitor_id as fallback instead
+        console.log('⚠️ Using visitor_id as backup code fallback');
+      }
     }
     
     // Don't generate new QR code - use Juan's pre-generated one
@@ -395,7 +407,7 @@ router.put('/:tokenId', async (req, res) => {
     
     // Check if visitor record already exists (from booking creation)
     const [existingVisitor] = await pool.query(
-      `SELECT visitor_id, first_name, last_name FROM visitors 
+      `SELECT visitor_id, first_name, last_name, backup_code FROM visitors 
        WHERE email = ? AND booking_id = ? AND is_main_visitor = false`,
       [tokenInfo.email, tokenInfo.booking_id]
     );
@@ -404,7 +416,8 @@ router.put('/:tokenId', async (req, res) => {
       email: tokenInfo.email,
       booking_id: tokenInfo.booking_id,
       found: existingVisitor.length > 0,
-      existing_data: existingVisitor.length > 0 ? existingVisitor[0] : null
+      existing_data: existingVisitor.length > 0 ? existingVisitor[0] : null,
+      backup_code_from_query: shortBackupCode
     });
     
     let visitorId;
@@ -412,25 +425,41 @@ router.put('/:tokenId', async (req, res) => {
     if (existingVisitor.length > 0) {
       // Update existing visitor record with form data
       visitorId = existingVisitor[0].visitor_id;
+      
+      // IMPORTANT: Preserve the original premade backup code from database
+      // Only use the extracted one if database doesn't have it (and it's not FALLBACK)
+      const originalBackupCode = existingVisitor[0].backup_code;
+      const finalBackupCode = (originalBackupCode && originalBackupCode.trim() !== '' && originalBackupCode !== 'FALLBACK')
+        ? originalBackupCode.trim().toUpperCase()
+        : (shortBackupCode || String(visitorId));
+      
       console.log(`🔄 Updating existing visitor record ${visitorId} with:`, {
-        firstName, lastName, gender, address, visitorType, purpose, institution
+        firstName, lastName, gender, address, visitorType, purpose, institution, 
+        email: tokenInfo.email, 
+        original_backup_code: originalBackupCode,
+        final_backup_code: finalBackupCode
       });
       
+      // IMPORTANT: Preserve original premade backup code, update with form data
       await pool.query(
         `UPDATE visitors SET 
-         first_name = ?, last_name = ?, gender = ?, address = ?, 
-         visitor_type = ?, purpose = ?, institution = ?, status = 'approved', qr_code = ?
+         first_name = ?, last_name = ?, gender = ?, address = ?, email = ?,
+         visitor_type = ?, purpose = ?, institution = ?, status = 'approved', qr_code = ?, backup_code = ?
          WHERE visitor_id = ?`,
-        [firstName, lastName, gender, address, visitorType, purpose, institution, base64Data, visitorId]
+        [firstName, lastName, gender, address, tokenInfo.email, visitorType, purpose, institution, base64Data, finalBackupCode, visitorId]
       );
-      console.log(`✅ Updated existing visitor record ${visitorId} with form data`);
+      console.log(`✅ Updated existing visitor record ${visitorId}`);
+      console.log(`🔑 Preserved/updated backup_code: "${finalBackupCode}" (was: "${originalBackupCode}")`);
     } else {
-      // Create new visitor record (fallback)
+      // Create new visitor record (fallback - should rarely happen for group bookings)
+      // Ensure we have a backup code - use visitor_id if none found
+      const finalBackupCodeForNew = shortBackupCode || 'TEMP';
+      
       const [visitorResult] = await pool.query(
         `INSERT INTO visitors (
           booking_id, first_name, last_name, gender, address, email, 
-          visitor_type, purpose, institution, status, is_main_visitor, qr_code
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', false, ?)`,
+          visitor_type, purpose, institution, status, is_main_visitor, qr_code, backup_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', false, ?, ?)`,
         [
           tokenInfo.booking_id,
           firstName,
@@ -441,11 +470,22 @@ router.put('/:tokenId', async (req, res) => {
           visitorType,
           purpose,
           institution,
-          base64Data
+          base64Data,
+          finalBackupCodeForNew
         ]
       );
       visitorId = visitorResult.insertId;
-      console.log(`✅ Created new visitor record ${visitorId}`);
+      
+      // If we used TEMP, update with visitor_id as backup code
+      if (finalBackupCodeForNew === 'TEMP') {
+        await pool.query(
+          `UPDATE visitors SET backup_code = ? WHERE visitor_id = ?`,
+          [String(visitorId), visitorId]
+        );
+        console.log(`✅ Created new visitor record ${visitorId} with backup_code: ${visitorId}`);
+      } else {
+        console.log(`✅ Created new visitor record ${visitorId} with backup_code: ${finalBackupCodeForNew}`);
+      }
     }
     
     // Backup code is already pre-generated and stored in the database

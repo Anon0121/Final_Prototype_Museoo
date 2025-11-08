@@ -477,8 +477,41 @@ const sendEventReminderEmail = async (registrationData) => {
   }
 };
 
+// Send event registration rejection email
+const sendEventRejectionEmail = async ({ firstname, lastname, email, event_title, start_date, time, location, rejection_reason }) => {
+  try {
+    const transporter = require('nodemailer').createTransport({
+      service: 'gmail',
+      auth: { user: 'museoweb1@gmail.com', pass: 'akrtgds yyprsfxyi' }
+    });
+    const fullName = `${firstname} ${lastname}`;
+    const eventDate = start_date ? new Date(start_date).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) : 'TBD';
+    const eventTime = time ? new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true }) : 'TBD';
+    const html = `
+      <div style="font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:auto;background:#fff;border-radius:10px;box-shadow:0 4px 6px rgba(0,0,0,.1);padding:30px">
+        <h2 style="margin:0 0 10px;color:#8B6B21">City Museum of Cagayan de Oro</h2>
+        <p style="color:#2e2b41">Dear ${fullName},</p>
+        <p>We appreciate your interest in <strong>${event_title}</strong>. Unfortunately, your registration was not approved at this time.</p>
+        ${rejection_reason ? `<div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:6px;margin:12px 0"><strong>Reason:</strong> ${rejection_reason}</div>` : ''}
+        <div style="background:#f8f9fa;border-left:4px solid #8B6B21;padding:12px;border-radius:6px;margin:12px 0">
+          <div style="color:#8B6B21;font-weight:bold">Event Details</div>
+          <div><strong>Date:</strong> ${eventDate}</div>
+          <div><strong>Time:</strong> ${eventTime}</div>
+          <div><strong>Location:</strong> ${location || 'TBD'}</div>
+        </div>
+        <p>If you have questions, please reply to this email. You are welcome to register for future events.</p>
+        <p style="margin-top:20px;color:#8B6B21;font-weight:bold">The MuseoSmart Team</p>
+      </div>`;
+    await transporter.sendMail({ from: 'MuseoSmart <museoweb1@gmail.com>', to: email, subject: `Event Registration Update - ${event_title}`, html });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+};
+
 module.exports = {
   sendEventApprovalEmail,
-  sendEventReminderEmail
+  sendEventReminderEmail,
+  sendEventRejectionEmail
 };
 

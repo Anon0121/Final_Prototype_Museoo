@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScanType } from "html5-qrcode";
 import api from "../../config/api";
 
 const EventParticipantScanner = () => {
@@ -19,8 +19,7 @@ const EventParticipantScanner = () => {
   // Check if we're on HTTPS (required for camera access on mobile)
   const isSecure = window.location.protocol === 'https:' || 
                    window.location.hostname === 'localhost' || 
-                   window.location.hostname === '127.0.0.1' ||
-                   window.location.hostname.includes('192.168.');
+                   window.location.hostname === '127.0.0.1';
 
   const checkCameraPermission = async () => {
     try {
@@ -113,6 +112,9 @@ const EventParticipantScanner = () => {
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
         },
         async (decodedText) => {
           console.log("Event Participant QR Code detected:", decodedText);

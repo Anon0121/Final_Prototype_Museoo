@@ -50,7 +50,7 @@ function generateCleanVisitorReportPDF(report) {
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             color: #000;
             line-height: 1.2;
             background: #ffffff;
@@ -60,7 +60,7 @@ function generateCleanVisitorReportPDF(report) {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
         .seal {
@@ -85,21 +85,29 @@ function generateCleanVisitorReportPDF(report) {
         }
         
         .museum-name {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
             color: #000;
             margin-bottom: 5px;
         }
         
         .museum-address {
-            font-size: 10px;
-            color: #000;
-            line-height: 1.2;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.3;
+        }
+        
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+            flex-shrink: 0;
         }
         
         .city-logo {
-            width: 120px;
-            height: 60px;
+            width: 80px;
+            height: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -114,17 +122,31 @@ function generateCleanVisitorReportPDF(report) {
         
         .report-title {
             text-align: center;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #000;
-            margin: 20px 0;
+            margin: 10px 0 5px 0;
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        
+        .total-visitor {
+            text-align: right;
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
         }
         
         .visitor-table {
             width: 100%;
             border-collapse: collapse;
             border: 1px solid #000;
-            margin-top: 10px;
+            margin-top: 0;
             font-size: 11px;
         }
         
@@ -156,13 +178,27 @@ function generateCleanVisitorReportPDF(report) {
         @media print {
             body { 
                 margin: 0; 
-                padding: 15px;
+                padding: 8px;
             }
             .header { 
                 page-break-after: avoid; 
+                margin-bottom: 15px;
+            }
+            .report-title {
+                margin: 8px 0 4px 0;
+            }
+            .table-header {
+                margin-bottom: 2px;
             }
             .visitor-table { 
-                page-break-inside: avoid; 
+                page-break-inside: auto;
+                page-break-before: auto;
+            }
+            .visitor-table thead {
+                display: table-header-group;
+            }
+            .visitor-table tbody {
+                display: table-row-group;
             }
         }
     </style>
@@ -181,14 +217,21 @@ function generateCleanVisitorReportPDF(report) {
             </div>
         </div>
         
-        <div class="city-logo">
-            <img src="data:image/png;base64,${getBase64Logo('Logo_cagayan_de oro_city.png')}" alt="City Logo" />
+        <div class="header-right">
+            <div class="city-logo">
+                <img src="data:image/png;base64,${getBase64Logo('Logo_cagayan_de oro_city.png')}" alt="City Logo" />
+            </div>
         </div>
     </div>
 
     <div class="report-title">Visitor Report</div>
 
-    ${reportData.visitorDetails && reportData.visitorDetails.length > 0 ? `
+    <div class="table-header">
+        <div class="total-visitor">
+            Total Visitor: ${reportData.visitorDetails ? reportData.visitorDetails.length : 0}
+        </div>
+    </div>
+
     <table class="visitor-table">
         <thead>
             <tr>
@@ -202,7 +245,8 @@ function generateCleanVisitorReportPDF(report) {
             </tr>
         </thead>
         <tbody>
-            ${reportData.visitorDetails.map(visitor => `
+            ${reportData.visitorDetails && reportData.visitorDetails.length > 0 ? 
+              reportData.visitorDetails.map(visitor => `
                 <tr>
                     <td>${visitor.first_name} ${visitor.last_name}</td>
                     <td>${visitor.gender || ''}</td>
@@ -212,29 +256,11 @@ function generateCleanVisitorReportPDF(report) {
                     <td>${visitor.purpose || ''}</td>
                     <td>${visitor.checkin_time ? new Date(visitor.checkin_time).toLocaleDateString() : (visitor.scan_time ? new Date(visitor.scan_time).toLocaleDateString() : (visitor.visit_date ? new Date(visitor.visit_date).toLocaleDateString() : 'No date'))}</td>
                 </tr>
-            `).join('')}
+              `).join('') : 
+              '<tr><td colspan="7" style="text-align: center; padding: 20px;">No visitors found</td></tr>'
+            }
         </tbody>
     </table>
-    ` : `
-    <table class="visitor-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Gender</th>
-                <th>Visitor Type</th>
-                <th>Email</th>
-                <th>Address</th>
-                <th>Purpose of Visit</th>
-                <th>Date of Visit</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        </tbody>
-    </table>
-    `}
 </body>
 </html>
 `;

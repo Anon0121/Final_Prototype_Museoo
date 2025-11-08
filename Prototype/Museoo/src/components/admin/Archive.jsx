@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../config/api';
 import { canView, canEdit, canAdmin, getAccessLevel } from '../../utils/permissions';
 
@@ -54,6 +54,11 @@ const Archive = ({ userPermissions }) => {
     title: '',
     message: '',
     description: ''
+  });
+  const [deleteArchiveModal, setDeleteArchiveModal] = useState({ 
+    show: false, 
+    id: null, 
+    itemTitle: null 
   });
 
   // Fetch archives from backend
@@ -145,19 +150,29 @@ const Archive = ({ userPermissions }) => {
   );
 
   // Handle delete (admin only)
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this archive item?')) return;
+  const handleDelete = (id) => {
+    const itemToDelete = archives.find(a => a.id === id);
+    setDeleteArchiveModal({ 
+      show: true, 
+      id: id, 
+      itemTitle: itemToDelete?.title || 'Archive Item' 
+    });
+  };
+
+  const confirmDeleteArchive = async () => {
+    if (!deleteArchiveModal.id) return;
     try {
-      const response = await api.delete(`/api/archives/${id}`);
+      const response = await api.delete(`/api/archives/${deleteArchiveModal.id}`);
       if (response.status === 200) {
-        setArchives(archives.filter(a => a.id !== id));
+        setArchives(archives.filter(a => a.id !== deleteArchiveModal.id));
         setNotification({
           show: true,
           type: 'success',
           title: 'Archive Deleted!',
           message: 'The archive has been deleted successfully.',
-          description: 'The archive has been permanently removed from the system.'
+          description: `"${deleteArchiveModal.itemTitle}" has been permanently removed from the system.`
         });
+        setDeleteArchiveModal({ show: false, id: null, itemTitle: null });
       }
     } catch (error) {
       console.error('Delete error:', error);
@@ -168,6 +183,7 @@ const Archive = ({ userPermissions }) => {
         message: 'Failed to delete the archive.',
         description: 'Please check your connection and try again.'
       });
+      setDeleteArchiveModal({ show: false, id: null, itemTitle: null });
     }
   };
 
@@ -201,9 +217,313 @@ const Archive = ({ userPermissions }) => {
     }
   };
 
+  // Office Document Preview Component - Memoized to prevent re-renders
+  const OfficeDocumentPreview = ({ url, item, fileUrlLower }) => {
+    const containerRef = useRef(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const hasLoadedRef = useRef(false); // Track if we've already loaded to prevent re-loading
+    const lastUrlRef = useRef(null); // Track the last URL we loaded
+
+    useEffect(() => {
+      // Normalize URL for comparison (remove trailing slashes, etc.)
+      const normalizedUrl = url?.trim().replace(/\/+$/, '');
+      
+      // Prevent multiple loads of the same document
+      if (hasLoadedRef.current && lastUrlRef.current === normalizedUrl) {
+        console.log('⚠️ Already loaded this URL, skipping...', normalizedUrl);
+        return; // Early return - no cleanup needed
+      }
+      
+      // Reset state for new document
+      setLoading(true);
+      setError(null);
+      
+      // Update tracking BEFORE starting load
+      hasLoadedRef.current = true;
+      lastUrlRef.current = normalizedUrl;
+      
+      const isDocx = fileUrlLower.includes('.docx') || fileUrlLower.includes('.doc');
+      const isPptx = fileUrlLower.includes('.pptx') || fileUrlLower.includes('.ppt');
+      
+      if (!isDocx && !isPptx) {
+        setLoading(false);
+        setError('Unsupported file type for preview');
+        hasLoadedRef.current = true; // Mark as processed
+        return () => {}; // Return empty cleanup
+      }
+      
+      // Wait for container ref to be available
+      const waitForContainer = () => {
+        return new Promise((resolve) => {
+          if (containerRef.current) {
+            resolve();
+          } else {
+            let containerAttempts = 0;
+            const checkInterval = setInterval(() => {
+              containerAttempts++;
+              if (containerRef.current) {
+                clearInterval(checkInterval);
+                resolve();
+              } else if (containerAttempts > 50) {
+                clearInterval(checkInterval);
+                throw new Error('Container ref not available after 5 seconds');
+              }
+            }, 100);
+          }
+        });
+      };
+      
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.error('⏱️ Preview load timeout after 30 seconds');
+        setError('Preview load timeout. Please try refreshing or download the file.');
+        setLoading(false);
+      }, 30000);
+      
+      if (isDocx) {
+        // Load docx-preview from CDN and render DOCX
+        const loadAndRender = async () => {
+          try {
+            setLoading(true);
+            console.log('📄 Starting DOCX preview load for:', url);
+            
+            // Wait for container to be available
+            await waitForContainer();
+            console.log('✅ Container ref is now available');
+            
+            // Load JSZip first (required dependency for docx-preview)
+            const loadScript = (src) => {
+              return new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[src="${src}"]`);
+                if (existing) {
+                  resolve();
+                  return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = src;
+                const timeout = setTimeout(() => {
+                  reject(new Error(`Library load timeout: ${src}`));
+                }, 10000);
+                
+                script.onload = () => {
+                  clearTimeout(timeout);
+                  resolve();
+                };
+                script.onerror = (err) => {
+                  clearTimeout(timeout);
+                  reject(new Error(`Failed to load: ${src}`));
+                };
+                document.head.appendChild(script);
+              });
+            };
+            
+            // Load JSZip first (required dependency)
+            console.log('📦 Loading JSZip library from CDN...');
+            await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+            console.log('✅ JSZip library loaded');
+            
+            // Wait a bit for JSZip to initialize
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Load docx-preview library
+            console.log('📦 Loading docx-preview library from CDN...');
+            await loadScript('https://cdn.jsdelivr.net/npm/docx-preview@0.1.4/dist/docx-preview.min.js');
+            console.log('✅ docx-preview library loaded');
+            
+            // Wait a bit for libraries to initialize
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Verify libraries are loaded
+            if (!window.JSZip) {
+              throw new Error('JSZip library not loaded');
+            }
+            
+            console.log('🔍 Checking for library API:', {
+              hasJSZip: !!window.JSZip,
+              hasWindowDocx: !!window.docx,
+              hasWindowDocxPreview: !!window.docxPreview,
+              windowKeys: Object.keys(window).filter(k => k.toLowerCase().includes('docx') || k.toLowerCase().includes('zip'))
+            });
+            
+            // Wait for docx library to be available (if not already)
+            let libCheckAttempts = 0;
+            while (libCheckAttempts < 50 && !window.docx && !window.docxPreview) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+              libCheckAttempts++;
+            }
+            
+            // Fetch the document - use fetch without credentials since archive files are public
+            console.log('📥 Fetching document from:', url);
+            
+            let arrayBuffer;
+            try {
+              // Use fetch without credentials for public archive files
+              // Explicitly set mode and credentials to ensure no credentials are sent
+              const response = await fetch(url, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit', // Explicitly omit credentials
+                cache: 'no-cache', // Prevent caching issues
+                headers: {
+                  'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                },
+                // Ensure no credentials are sent
+                referrerPolicy: 'no-referrer'
+              });
+              
+              console.log('📥 Response status:', response.status, response.statusText);
+              
+              if (!response.ok) {
+                const errorText = await response.text().catch(() => '');
+                throw new Error(`Failed to fetch document: ${response.status} ${response.statusText}. ${errorText}`);
+              }
+              
+              arrayBuffer = await response.arrayBuffer();
+              console.log('✅ Document loaded successfully, size:', arrayBuffer.byteLength, 'bytes');
+            } catch (fetchError) {
+              console.error('❌ Fetch error details:', fetchError);
+              throw new Error(`Failed to fetch document. ${fetchError.message}`);
+            }
+            
+            // Check for different possible library exports
+            const docxLib = window.docx || window.docxPreview || window.DocxPreview;
+            
+            if (docxLib && docxLib.renderAsync) {
+              console.log('🎨 Rendering DOCX with renderAsync...');
+              await docxLib.renderAsync(arrayBuffer, containerRef.current, null, {
+                className: 'docx-preview',
+                inWrapper: true,
+                ignoreWidth: false,
+                ignoreHeight: false,
+                ignoreFonts: false,
+                breakPages: true
+              });
+              console.log('✅ DOCX rendered successfully');
+              setLoading(false);
+            } else if (docxLib && typeof docxLib === 'function') {
+              console.log('🎨 Rendering DOCX with function call...');
+              docxLib(arrayBuffer, containerRef.current);
+              setLoading(false);
+            } else {
+              const availableKeys = Object.keys(window).filter(k => k.toLowerCase().includes('docx') || k.toLowerCase().includes('preview') || k.toLowerCase().includes('zip'));
+              throw new Error(`docx-preview library API not found. Available window keys: ${availableKeys.join(', ') || 'none'}`);
+            }
+          } catch (err) {
+            console.error('❌ Error rendering DOCX:', err);
+            console.error('Error details:', {
+              message: err.message,
+              stack: err.stack,
+              url: url
+            });
+            setError(err.message || 'Failed to load document preview');
+            setLoading(false);
+            clearTimeout(timeoutId);
+          }
+        };
+        
+        loadAndRender().catch(err => {
+          console.error('❌ Unhandled error in loadAndRender:', err);
+          setError(err.message || 'Failed to load document preview');
+          setLoading(false);
+          clearTimeout(timeoutId);
+        });
+      } else if (isPptx) {
+        setLoading(false);
+        setError('PPTX preview requires conversion to PDF. Please download to view.');
+        hasLoadedRef.current = true; // Mark as processed
+      }
+      
+      // Cleanup timeout on unmount or URL change
+      return () => {
+        clearTimeout(timeoutId);
+        // Don't reset hasLoadedRef here - React.memo will handle re-renders
+      };
+    }, [url, fileUrlLower]); // Depend on both to detect changes
+
+    if (error) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 p-8 bg-white rounded">
+          <i className={`fa-solid ${fileUrlLower.includes('.pptx') || fileUrlLower.includes('.ppt') ? 'fa-file-powerpoint' : 'fa-file-word'} text-6xl mb-4 text-[#E5B80B]`}></i>
+          <h3 className="text-lg font-semibold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+            Preview Unavailable
+          </h3>
+          <p className="text-sm text-center mb-4 max-w-md">{error}</p>
+          <div className="flex space-x-3">
+            <a 
+              href={url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg hover:bg-[#d4a509] transition-colors font-semibold"
+              style={{fontFamily: 'Telegraf, sans-serif'}}
+            >
+              <i className="fa-solid fa-external-link-alt mr-2"></i>
+              Open Document
+            </a>
+            <a 
+              href={url} 
+              download
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+              style={{fontFamily: 'Telegraf, sans-serif'}}
+            >
+              <i className="fa-solid fa-download mr-2"></i>
+              Download
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    // Always render the container div so ref is available, but show loading/error overlays
+    return (
+      <div className="w-full h-full bg-white rounded overflow-auto relative">
+        {/* Loading overlay */}
+        {loading && !error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 p-8 bg-white z-10">
+            <i className="fa-solid fa-spinner fa-spin text-6xl mb-4 text-[#E5B80B]"></i>
+            <h3 className="text-lg font-semibold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+              Loading Preview...
+            </h3>
+          </div>
+        )}
+        
+        {/* Container for DOCX preview - always rendered so ref is available */}
+        <div 
+          ref={containerRef} 
+          className="docx-wrapper" 
+          style={{ 
+            padding: '20px', 
+            minHeight: '100%',
+            visibility: loading || error ? 'hidden' : 'visible'
+          }}
+        ></div>
+      </div>
+    );
+  };
+  
+  // Memoized version that only re-renders when URL or file type changes
+  const MemoizedOfficePreview = React.memo(OfficeDocumentPreview, (prevProps, nextProps) => {
+    // Return true if props are equal (skip re-render), false if different (re-render)
+    const urlEqual = prevProps.url === nextProps.url;
+    const fileTypeEqual = prevProps.fileUrlLower === nextProps.fileUrlLower;
+    const itemEqual = prevProps.item?.id === nextProps.item?.id;
+    return urlEqual && fileTypeEqual && itemEqual; // true = skip re-render
+  });
+
   // Render preview modal
   const renderPreview = (item) => {
-    const url = `http://localhost:3000${item.file_url}`;
+    // Ensure file_url starts with /uploads
+    let filePath = item.file_url.startsWith('/') ? item.file_url : `/${item.file_url}`;
+    // Remove any double slashes
+    filePath = filePath.replace(/\/+/g, '/');
+    const url = `${api.defaults.baseURL}${filePath}`;
+    const fileUrlLower = item.file_url?.toLowerCase() || '';
+    
+    console.log('📄 Rendering preview for:', item.title);
+    console.log('📂 File URL from item:', item.file_url);
+    console.log('🔗 Constructed URL:', url);
+    console.log('🌐 Base URL:', api.defaults.baseURL);
     
     if (item.type === 'Image') {
       return (
@@ -229,116 +549,141 @@ const Archive = ({ userPermissions }) => {
     }
     
     if (item.type === 'Document') {
-      // Check if it's a PDF or other embeddable document
-      const isPDF = item.file_url.toLowerCase().includes('.pdf');
-      const isEmbeddable = isPDF || item.file_url.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/);
+      // Check file type - be more robust with detection
+      const fileUrlLower = item.file_url.toLowerCase();
+      const isPDF = fileUrlLower.endsWith('.pdf') || fileUrlLower.includes('.pdf');
+      const isOfficeDoc = /\.(doc|docx|xls|xlsx|ppt|pptx)$/i.test(item.file_url);
       
-      if (isEmbeddable) {
+      console.log('📋 File type detection:', {
+        file_url: item.file_url,
+        isPDF,
+        isOfficeDoc,
+        detectedType: isPDF ? 'PDF' : isOfficeDoc ? 'Office' : 'Other'
+      });
+      
       return (
-          <div className="w-full h-full flex flex-col bg-white rounded-lg shadow-lg">
-            {/* Document Header */}
-            <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-              <div className="flex items-center space-x-2">
-                <i className="fa-solid fa-file-alt text-[#E5B80B]"></i>
-                <span className="font-semibold text-sm" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
-                  Document Preview
-                </span>
-              </div>
-              <div className="flex space-x-2">
-                <a 
-                  href={url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="px-3 py-1 bg-[#E5B80B] text-white rounded text-xs hover:bg-[#d4a509] transition-colors font-semibold flex items-center justify-center"
-                  style={{fontFamily: 'Telegraf, sans-serif'}}
-                >
-                  <i className="fa fa-external-link mr-1" style={{fontSize: '10px'}}></i>
-                  Open
-                </a>
-                <a 
-                  href={url} 
-                  download
-                  className="px-3 py-1 bg-[#E5B80B] text-[#351E10] rounded text-xs hover:bg-[#D4AF37] transition-colors font-semibold flex items-center justify-center font-telegraf"
-                >
-                  <i className="fa fa-download mr-1" style={{fontSize: '10px'}}></i>
-                  Download
-                </a>
-              </div>
+        <div className="w-full h-full flex flex-col bg-white rounded-lg shadow-lg">
+          {/* Document Header */}
+          <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+            <div className="flex items-center space-x-2">
+              <i className="fa-solid fa-file-alt text-[#E5B80B]"></i>
+              <span className="font-semibold text-sm" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Document Preview
+              </span>
             </div>
-            
-            {/* Document Content */}
-            <div className="flex-1 p-2">
-              {isPDF ? (
-        <iframe
-                  src={`${url}#toolbar=1&navpanes=1&scrollbar=1`}
-                  className="w-full h-full border-0 rounded"
-          title={item.title}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
+            <div className="flex space-x-2">
+              <a 
+                href={url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-3 py-1 bg-[#E5B80B] text-white rounded text-xs hover:bg-[#d4a509] transition-colors font-semibold flex items-center justify-center"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa fa-external-link mr-1" style={{fontSize: '10px'}}></i>
+                Open
+              </a>
+              <a 
+                href={url} 
+                download
+                className="px-3 py-1 bg-[#E5B80B] text-[#351E10] rounded text-xs hover:bg-[#D4AF37] transition-colors font-semibold flex items-center justify-center font-telegraf"
+              >
+                <i className="fa fa-download mr-1" style={{fontSize: '10px'}}></i>
+                Download
+              </a>
+            </div>
+          </div>
+          
+          {/* Document Content */}
+          <div className="flex-1 p-2 relative bg-gray-50" style={{ minHeight: '500px' }}>
+            {isPDF ? (
+              <div className="w-full h-full relative bg-white rounded">
+                <object
+                  data={`${url}#toolbar=1&navpanes=1&scrollbar=1`}
+                  type="application/pdf"
+                  className="w-full h-full rounded"
+                  style={{ minHeight: '500px' }}
+                  onLoad={() => {
+                    console.log('✅ PDF object loaded successfully');
                   }}
-                />
-              ) : (
-                <iframe
-                  src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
-                  className="w-full h-full border-0 rounded"
-                  title={item.title}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                  }}
-                />
-              )}
-              
-              {/* Fallback if iframe fails */}
-              <div className="hidden w-full h-full flex-col items-center justify-center text-gray-500 p-8">
+                >
+                  {/* Fallback iframe if object fails */}
+                  <iframe
+                    key={`pdf-${item.id}-${url}`}
+                    src={`${url}#toolbar=1&navpanes=1&scrollbar=1`}
+                    className="w-full h-full border-0 rounded"
+                    title={item.title}
+                    style={{ minHeight: '500px' }}
+                    onLoad={() => {
+                      console.log('✅ PDF iframe loaded (fallback)');
+                    }}
+                    onError={(e) => {
+                      console.error('❌ PDF iframe failed to load:', e);
+                    }}
+                  />
+                  {/* Final fallback message */}
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 p-8">
+                    <i className="fa-solid fa-file-pdf text-6xl mb-4 text-red-500"></i>
+                    <h3 className="text-lg font-semibold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                      PDF Preview Unavailable
+                    </h3>
+                    <p className="text-sm text-center mb-4">
+                      Unable to load PDF preview. Please use the buttons above.
+                    </p>
+                    <a 
+                      href={url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg hover:bg-[#d4a509] transition-colors font-semibold"
+                      style={{fontFamily: 'Telegraf, sans-serif'}}
+                    >
+                      <i className="fa-solid fa-external-link-alt mr-2"></i>
+                      Open PDF
+                    </a>
+                  </div>
+                </object>
+              </div>
+            ) : isOfficeDoc ? (
+              <MemoizedOfficePreview 
+                key={`office-preview-${item.id}-${url}`}
+                url={url} 
+                item={item} 
+                fileUrlLower={fileUrlLower} 
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 p-8">
                 <i className="fa-solid fa-file-alt text-6xl mb-4 text-[#E5B80B]"></i>
                 <h3 className="text-lg font-semibold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
-                  Document Preview Not Available
+                  Document Preview
                 </h3>
                 <p className="text-sm text-center mb-4">
-                  The document cannot be displayed inline. Please use the buttons above to open or download.
+                  This document type cannot be previewed inline. Click the buttons above to view or download.
                 </p>
+                <div className="flex space-x-3">
+                  <a 
+                    href={url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg hover:bg-[#d4a509] transition-colors font-semibold"
+                    style={{fontFamily: 'Telegraf, sans-serif'}}
+                  >
+                    <i className="fa-solid fa-external-link-alt mr-2"></i>
+                    Open Document
+                  </a>
+                  <a 
+                    href={url} 
+                    download
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+                    style={{fontFamily: 'Telegraf, sans-serif'}}
+                  >
+                    <i className="fa-solid fa-download mr-2"></i>
+                    Download
+                  </a>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        );
-      } else {
-        // For non-embeddable documents
-        return (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 rounded-lg">
-            <div className="flex flex-col items-center justify-center text-gray-500 p-8">
-              <i className="fa-solid fa-file-alt text-6xl mb-4 text-[#E5B80B]"></i>
-              <h3 className="text-lg font-semibold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
-                Document Preview
-              </h3>
-              <p className="text-sm text-center mb-4">
-                This document type cannot be previewed inline. Click the button below to view or download.
-              </p>
-              <div className="flex space-x-3">
-                <a 
-                  href={url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-[#E5B80B] text-white rounded-lg hover:bg-[#d4a509] transition-colors font-semibold"
-                  style={{fontFamily: 'Telegraf, sans-serif'}}
-                >
-                  <i className="fa-solid fa-external-link-alt mr-2"></i>
-                  Open Document
-                </a>
-                <a 
-                  href={url} 
-                  download
-                  className="px-4 py-2 bg-[#E5B80B] text-[#351E10] rounded-lg hover:bg-[#D4AF37] transition-colors font-semibold font-telegraf"
-                >
-                  <i className="fa-solid fa-download mr-2"></i>
-                  Download
-                </a>
-              </div>
-            </div>
-          </div>
-        );
-      }
+        </div>
+      );
     }
     
     if (item.type === 'Audio') {
@@ -956,7 +1301,7 @@ const Archive = ({ userPermissions }) => {
                         
                         {canEditArchive && (
                           <a 
-                            href={`http://localhost:3000${item.file_url}`} 
+                            href={`${api.defaults.baseURL}${item.file_url}`} 
                             download 
                             className="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 hover:shadow-lg transform hover:-translate-y-0.5"
                             style={{backgroundColor: '#351E10', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
@@ -1136,7 +1481,7 @@ const Archive = ({ userPermissions }) => {
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex flex-col sm:flex-row gap-3">
               <a 
-                href={`http://localhost:3000${preview.file_url}`} 
+                href={`${api.defaults.baseURL}${preview.file_url}`} 
                 download 
                         className="flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-lg transform hover:-translate-y-0.5 text-center"
                         style={{backgroundColor: '#E5B80B', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
@@ -1216,6 +1561,61 @@ const Archive = ({ userPermissions }) => {
               >
                 <i className="fa-solid fa-check mr-2"></i>
                 Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Archive Modal */}
+      {deleteArchiveModal.show && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 border-l-4 border-orange-500">
+            {/* Confirmation Icon */}
+            <div className="flex justify-center pt-8 pb-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+                <i className="fa-solid fa-question text-3xl text-white"></i>
+              </div>
+            </div>
+            
+            {/* Confirmation Message */}
+            <div className="px-8 pb-8 text-center">
+              <h3 className="text-2xl font-bold mb-2" style={{color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}>
+                Delete Archive Item
+              </h3>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                Are you sure you want to delete "{deleteArchiveModal.itemTitle}"?
+              </p>
+              <p className="text-gray-600 text-lg mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                This action cannot be undone and will permanently remove:
+              </p>
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
+                <ul className="text-sm text-red-700 space-y-1" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                  <li>• Archive item details</li>
+                  <li>• Associated file</li>
+                  <li>• All metadata</li>
+                  <li>• Visitor access records</li>
+                </ul>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="px-8 pb-8 flex gap-4">
+              <button
+                onClick={() => setDeleteArchiveModal({ show: false, id: null, itemTitle: null })}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-times mr-2"></i>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteArchive}
+                className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                <i className="fa-solid fa-trash mr-2"></i>
+                Delete
               </button>
             </div>
           </div>

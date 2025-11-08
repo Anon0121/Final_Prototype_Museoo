@@ -86,7 +86,7 @@ const Dashboard = ({ userPermissions, setActiveTab }) => {
       fontFamily: "font-telegraf"
     },
     {
-      title: "Scheduled Tours",
+      title: "Total Tours",
       value: stats.schedules,
       icon: "fa-calendar-check",
       color: "from-[#351E10] to-[#2A1A0D]",
@@ -143,9 +143,9 @@ const Dashboard = ({ userPermissions, setActiveTab }) => {
       fontFamily: "font-telegraf"
     },
     {
-      title: "Cultural Objects",
-      value: stats.culturalObjects,
-      icon: "fa-landmark",
+      title: "Donation Requests",
+      value: stats.donationRequestMeetings || 0,
+      icon: "fa-hand-holding-heart",
       color: "from-[#E5B80B] to-[#D4AF37]",
       bgColor: "bg-gradient-to-br from-white to-yellow-50",
       textColor: "text-[#351E10]",
@@ -348,6 +348,140 @@ const Dashboard = ({ userPermissions, setActiveTab }) => {
                    <i className="fa-solid fa-calendar-day text-2xl sm:text-3xl md:text-4xl text-gray-300 mb-2 sm:mb-3 md:mb-4"></i>
                    <p className="text-gray-500 text-xs sm:text-sm md:text-base font-['Telegraph']">No scheduled visits today</p>
                  </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Donation Requests */}
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200">
+            <div className="p-3 sm:p-4 md:p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#2e2b41] font-['Lora']">
+                  <i className="fa-solid fa-hand-holding-heart mr-2 sm:mr-3 text-[#E5B80B]"></i>
+                  Recent Donation Requests
+                </h3>
+                <button
+                  onClick={() => setActiveTab("Donation")}
+                  className="text-[#AB8841] hover:text-[#8B6B21] text-xs sm:text-sm md:text-base font-medium transition-colors"
+                >
+                  View All
+                </button>
+              </div>
+            </div>
+            <div className="p-3 sm:p-4 md:p-6">
+              {stats.recentDonations && stats.recentDonations.length > 0 ? (
+                <div className="space-y-2 sm:space-y-3 md:space-y-4">
+                  {stats.recentDonations.slice(0, 3).map((donation, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-xs sm:text-sm md:text-base text-[#2e2b41] truncate font-['Telegraph']">
+                          {donation.donor_name || 'Unknown Donor'}
+                        </p>
+                        <p className="text-xs text-gray-600 font-['Telegraph']">
+                          {donation.type === 'monetary' && donation.amount ? `₱${parseFloat(donation.amount).toLocaleString()}` : 
+                           donation.item_description ? donation.item_description.substring(0, 50) + (donation.item_description.length > 50 ? '...' : '') :
+                           donation.type || 'Donation'}
+                        </p>
+                        <p className="text-xs text-gray-500 font-['Telegraph']">
+                          {donation.type === 'monetary' ? 'Monetary Donation' : 
+                           donation.type === 'artifact' ? 'Artifact Donation' :
+                           donation.type === 'loan' ? 'Loan Artifact' : 'Donation'}
+                          {donation.preferred_visit_date && ` • ${new Date(donation.preferred_visit_date).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full font-medium font-['Telegraph'] ${
+                          donation.processing_stage === 'request_meeting' 
+                            ? 'bg-yellow-100 text-yellow-700' 
+                            : donation.processing_stage === 'schedule_meeting'
+                            ? 'bg-blue-100 text-blue-700'
+                            : donation.processing_stage === 'finished_meeting'
+                            ? 'bg-orange-100 text-orange-700'
+                            : donation.processing_stage === 'city_hall'
+                            ? 'bg-purple-100 text-purple-700'
+                            : donation.processing_stage === 'complete'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {donation.processing_stage?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
+                        </span>
+                        <span className="text-xs text-gray-500 font-['Telegraph']">
+                          {formatTimeAgo(donation.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 sm:py-6 md:py-8">
+                  <i className="fa-solid fa-hand-holding-heart text-2xl sm:text-3xl md:text-4xl text-gray-300 mb-2 sm:mb-3 md:mb-4"></i>
+                  <p className="text-gray-500 text-xs sm:text-sm md:text-base font-['Telegraph']">No recent donation requests</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Scheduled Meetings */}
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200">
+            <div className="p-3 sm:p-4 md:p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#2e2b41] font-['Lora']">
+                  <i className="fa-solid fa-calendar-check mr-2 sm:mr-3 text-[#351E10]"></i>
+                  Scheduled Meetings
+                </h3>
+                <button
+                  onClick={() => setActiveTab("Donation")}
+                  className="text-[#AB8841] hover:text-[#8B6B21] text-xs sm:text-sm md:text-base font-medium transition-colors"
+                >
+                  View All
+                </button>
+              </div>
+            </div>
+            <div className="p-3 sm:p-4 md:p-6">
+              {stats.scheduledMeetings && stats.scheduledMeetings.length > 0 ? (
+                <div className="space-y-2 sm:space-y-3 md:space-y-4">
+                  {stats.scheduledMeetings.slice(0, 3).map((meeting, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-xs sm:text-sm md:text-base text-[#2e2b41] truncate font-['Telegraph']">
+                          {meeting.donor_name || 'Unknown Donor'}
+                        </p>
+                        <p className="text-xs text-gray-600 font-['Telegraph']">
+                          {meeting.scheduled_date ? new Date(meeting.scheduled_date).toLocaleDateString() : 
+                           meeting.preferred_visit_date ? new Date(meeting.preferred_visit_date).toLocaleDateString() : 'No date'}
+                          {meeting.scheduled_time && ` at ${meeting.scheduled_time}`}
+                          {meeting.preferred_visit_time && !meeting.scheduled_time && ` at ${meeting.preferred_visit_time}`}
+                        </p>
+                        <p className="text-xs text-gray-500 font-['Telegraph']">
+                          {meeting.type === 'monetary' ? 'Monetary Donation' : 
+                           meeting.type === 'artifact' ? 'Artifact Donation' :
+                           meeting.type === 'loan' ? 'Loan Artifact' : 'Donation Meeting'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full font-medium font-['Telegraph'] ${
+                          meeting.processing_stage === 'schedule_meeting' 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : meeting.processing_stage === 'finished_meeting'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {meeting.processing_stage === 'schedule_meeting' ? 'Scheduled' :
+                           meeting.processing_stage === 'finished_meeting' ? 'Completed' : 'Meeting'}
+                        </span>
+                        <span className="text-xs text-gray-500 font-['Telegraph']">
+                          {meeting.scheduled_date ? formatTimeAgo(meeting.scheduled_date) : 
+                           meeting.preferred_visit_date ? formatTimeAgo(meeting.preferred_visit_date) : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 sm:py-6 md:py-8">
+                  <i className="fa-solid fa-calendar-check text-2xl sm:text-3xl md:text-4xl text-gray-300 mb-2 sm:mb-3 md:mb-4"></i>
+                  <p className="text-gray-500 text-xs sm:text-sm md:text-base font-['Telegraph']">No scheduled meetings</p>
+                </div>
               )}
             </div>
           </div>

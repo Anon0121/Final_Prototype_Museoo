@@ -603,6 +603,7 @@ router.post('/book', async (req, res) => {
         const companionQrData = {
           type: 'additional_visitor',
           visitorId: companionBackupCode,
+          backupCode: companionBackupCode, // Also store as backupCode for easier lookup
           bookingId: bookingId,
           email: member.email,
           visitDate: date,
@@ -638,19 +639,56 @@ router.post('/book', async (req, res) => {
         // No need for tokens since it's a direct walk-in
         console.log('✅ Walk-in scheduling: Visitor record already created in visitors table');
       } else if (type === 'group-walkin') {
-        // Group walk-in - all visitors already created in visitors table above
-        console.log('✅ Group walk-in: All visitor records already created in visitors table');
-      } else if (type === 'group') {
-        // Regular group booking - create tokens for additional visitors to complete their forms
+        // Group walk-in - create additional_visitors records for tracking
+        // Visitor records are already created in visitors table above, but we need additional_visitors records too
         for (let i = 0; i < membersToProcess.length; i++) {
           const member = membersToProcess[i];
           const tokenId = `GROUP-${bookingId}-${i + 1}`;
           
-          // Create token for additional visitor form
-          await conn.query(
-            `INSERT INTO additional_visitors (token_id, booking_id, email, expires_at) VALUES (?, ?, ?, ?)`,
-            [tokenId, bookingId, member.email, expiresAt]
+          // Create additional_visitors record and link it to the existing visitor record
+          // Find the visitor_id that was just created for this member
+          const [memberVisitorRows] = await conn.query(
+            `SELECT visitor_id FROM visitors 
+             WHERE booking_id = ? AND email = ? AND is_main_visitor = false 
+             ORDER BY visitor_id DESC LIMIT 1`,
+            [bookingId, member.email]
           );
+          
+          const memberVisitorId = memberVisitorRows.length > 0 ? memberVisitorRows[0].visitor_id : null;
+          
+          // Create token for additional visitor tracking
+          await conn.query(
+            `INSERT INTO additional_visitors (token_id, booking_id, email, expires_at, visitor_id) VALUES (?, ?, ?, ?, ?)`,
+            [tokenId, bookingId, member.email, expiresAt, memberVisitorId]
+          );
+          
+          console.log(`✅ Created additional_visitors record ${tokenId} with visitor_id ${memberVisitorId} for ${member.email}`);
+        }
+        console.log('✅ Group walk-in: All visitor records and additional_visitors records created');
+      } else if (type === 'group') {
+        // Regular group booking - create tokens for additional visitors to complete their forms
+        // Link additional_visitors records to existing visitor records (same as group walk-in)
+        for (let i = 0; i < membersToProcess.length; i++) {
+          const member = membersToProcess[i];
+          const tokenId = `GROUP-${bookingId}-${i + 1}`;
+          
+          // Find the visitor_id that was just created for this member
+          const [memberVisitorRows] = await conn.query(
+            `SELECT visitor_id FROM visitors 
+             WHERE booking_id = ? AND email = ? AND is_main_visitor = false 
+             ORDER BY visitor_id DESC LIMIT 1`,
+            [bookingId, member.email]
+          );
+          
+          const memberVisitorId = memberVisitorRows.length > 0 ? memberVisitorRows[0].visitor_id : null;
+          
+          // Create token for additional visitor tracking and link to visitor record
+          await conn.query(
+            `INSERT INTO additional_visitors (token_id, booking_id, email, expires_at, visitor_id) VALUES (?, ?, ?, ?, ?)`,
+            [tokenId, bookingId, member.email, expiresAt, memberVisitorId]
+          );
+          
+          console.log(`✅ Created additional_visitors record ${tokenId} with visitor_id ${memberVisitorId} for ${member.email}`);
           
           companionTokens.push({
             tokenId,
@@ -875,8 +913,11 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
     let emailContent = `Hi ${mainVisitor.first_name},\n\nYour museum visit is confirmed!\n\n`;
     let attachments = [];
 
-    // Generate primary visitor QR code
-    const checkinUrl = `http://localhost:3000/api/visit/checkin/${id}`;
+    // Generate primary visitor QR code - use HTTPS for production
+    const protocol = req.protocol || 'https';
+    const host = req.get('host') || '192.168.1.6:3000';
+    const checkinUrl = `${protocol}://${host}/api/visit/checkin/${id}`;
+    console.log('🔗 Generated check-in URL:', checkinUrl);
     const qrDataUrl = await QRCode.toDataURL(checkinUrl);
     const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
     attachments.push({
@@ -1150,8 +1191,10 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
         const companionBackupCode = visitorData[0].backup_code;
         console.log(`🔑 Using backup code from database: ${companionBackupCode}`);
         
-        // Generate companion form link
-        const companionFormUrl = `http://localhost:5173/additional-visitor?token=${companion.token_id}`;
+        // Generate companion form link - use configurable frontend URL
+        const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+        const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+        const companionFormUrl = `${frontendProtocol}://${frontendHost}/additional-visitor?token=${companion.token_id}`;
         
         // Send separate email to each companion
         let companionEmailContent = `Hi,\n\nYou have been invited to join a museum visit!\n\n`;
@@ -1362,18 +1405,21 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
             </div>
             
             <div class="backup-code">
-                <h3>🔑 Backup Code</h3>
-                <p>If your QR code doesn't work, use this backup code:</p>
-                <div class="code-display">${companionBackupCode}</div>
+                <h3>🔑 Your Backup Code</h3>
+                <p>If your QR code doesn't work, use this backup code for manual check-in:</p>
+                <div class="code-display">${companionBackupCode || 'N/A'}</div>
                 <p style="margin-top: 15px; font-size: 14px; color: #856404;">
-                    <strong>Important:</strong> Please complete your details using the link above before your visit.
+                    <strong>Keep this code safe</strong> - you'll need it for manual check-in if your QR code fails.
                 </p>
             </div>
             
             <div class="details-section">
                 <h3>📝 Complete Your Details</h3>
-                <p>Please click the link below to complete your information:</p>
-                <a href="${companionFormUrl}" class="details-button">Complete My Details</a>
+                <p>Please click the link below to complete your visitor information:</p>
+                <a href="${companionFormUrl}" class="details-button" style="display: inline-block; background: #8B6B21; color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; font-weight: bold;">Complete My Details</a>
+                <p style="margin-top: 15px; font-size: 14px; color: #856404;">
+                    <strong>Important:</strong> Please complete your details using the link above before your visit.
+                </p>
             </div>
             
             <p>Please arrive 10 minutes early for a smooth check-in experience. Bring a valid photo ID for verification purposes.</p>
@@ -1470,14 +1516,28 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
     if (isWalkInScheduling || isIndWalkin) {
       // For individual walk-in, we don't need to find a token - the visitor is already in the visitors table
       if (isIndWalkin) {
-        // Get form link for registration using visitor_id
-        const walkInFormUrl = `http://localhost:5173/walkin-visitor?visitorId=${mainVisitor.visitor_id}`;
+        // Get form link for registration using visitor_id - use configurable frontend URL
+        const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+        const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+        const walkInFormUrl = `${frontendProtocol}://${frontendHost}/walkin-visitor?visitorId=${mainVisitor.visitor_id}`;
       
         // For individual walk-in, send single email with QR code, backup code, and form link
+        // Get or generate backup code
+        let backupCode = mainVisitor.backup_code;
+        if (!backupCode) {
+          backupCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+          // Store backup code in database
+          await pool.query(
+            `UPDATE visitors SET backup_code = ? WHERE visitor_id = ?`,
+            [backupCode, mainVisitor.visitor_id]
+          );
+        }
+        
         // Generate QR code for immediate use
         const qrData = {
           type: 'walkin_visitor',
           visitorId: mainVisitor.visitor_id,
+          backupCode: backupCode,
           bookingId: id,
           email: mainVisitor.email,
           visitDate: booking.date,
@@ -1487,6 +1547,12 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
         
         const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrData));
         const base64Data = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
+        
+        // Update visitor record with QR code
+        await pool.query(
+          `UPDATE visitors SET qr_code = ? WHERE visitor_id = ?`,
+          [base64Data, mainVisitor.visitor_id]
+        );
         
         // Create comprehensive email with QR code attachment
         const comprehensiveWalkInEmailHtml = `
@@ -1569,13 +1635,21 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
         }
         .registration-button {
             display: inline-block;
-            background: #8B6B21;
-            color: white;
+            background: #8B6B21 !important;
+            color: white !important;
             padding: 12px 24px;
-            text-decoration: none;
+            text-decoration: none !important;
             border-radius: 5px;
             margin: 10px 0;
             font-weight: bold;
+        }
+        a.registration-button,
+        a.registration-button:link,
+        a.registration-button:visited,
+        a.registration-button:hover,
+        a.registration-button:active {
+            color: white !important;
+            text-decoration: none !important;
         }
         .important-notice {
             background-color: #fff3cd;
@@ -1640,7 +1714,7 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
             day: 'numeric' 
         })}</div>
         
-        <div class="greeting">Dear ${mainVisitor.first_name},</div>
+        <div class="greeting">Dear ${mainVisitor.first_name || 'walk-in visitor'},</div>
         
         <div class="content">
             <p>Your walk-in museum visit has been approved for <strong>${booking.date}</strong> at <strong>${booking.time_slot}</strong>.</p>
@@ -1653,15 +1727,27 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
                 <p><strong>Status:</strong> ✅ Approved</p>
             </div>
             
+            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 5px;">
+                <h3 style="color: #856404; margin-top: 0; margin-bottom: 15px;">🔑 Your Backup Code</h3>
+                <p style="margin-bottom: 15px; color: #2e2b41;">If your QR code doesn't work, use this backup code at the museum entrance:</p>
+                <div style="background: #f8f9fa; padding: 20px; text-align: center; margin: 15px 0; border-radius: 5px; border: 2px solid #ffc107;">
+                    <h2 style="color: #8B6B21; font-size: 32px; margin: 0; letter-spacing: 5px; font-family: 'Courier New', monospace; font-weight: bold;">${backupCode}</h2>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #856404;">
+                    <strong>⚠️ Important:</strong> Save this backup code. You can use it if QR code scanning fails at the museum entrance.
+                </p>
+            </div>
+            
             <div class="registration-section">
                 <h3>📋 Complete Your Registration</h3>
-                <p>Please click the link below to complete your registration and get your QR code:</p>
-                <a href="${walkInFormUrl}" class="registration-button">Complete My Registration</a>
+                <p>Please click the link below to complete your registration details (you can still use your QR code before completing registration):</p>
+                <a href="${walkInFormUrl}" class="registration-button" style="display: inline-block; background: #8B6B21; color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; font-weight: bold;">Complete My Registration</a>
             </div>
             
             <div class="important-notice">
                 <h4>⏰ Important Notice</h4>
                 <p><strong>24-Hour Expiration:</strong> This registration link will expire in 24 hours. Please complete your profile within this time.</p>
+                <p style="margin-top: 10px;"><strong>✅ Ready to Visit:</strong> Your QR code is attached to this email, and your backup code is shown above. You can use them immediately for check-in, even before completing your registration form.</p>
             </div>
             
             <p>Please complete your registration as soon as possible.</p>
@@ -1718,8 +1804,10 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
         );
         
         if (walkInToken) {
-          // Get form link for registration using token
-          const walkInFormUrl = `http://localhost:5173/walkin-visitor?token=${walkInToken.token_id}`;
+          // Get form link for registration using token - use configurable frontend URL
+          const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+          const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+          const walkInFormUrl = `${frontendProtocol}://${frontendHost}/walkin-visitor?token=${walkInToken.token_id}`;
           
           // Generate QR code for immediate use
           const qrData = {
@@ -1824,8 +1912,10 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
         // Generate backup code
         const backupCode = Math.random().toString(36).substring(2, 6).toUpperCase();
         
-        // For group walk-in, use visitor_id for the leader form
-        const primaryFormUrl = `http://localhost:5173/group-walkin-leader?visitorId=${mainVisitor.visitor_id}`;
+        // For group walk-in, use visitor_id for the leader form - use HTTPS for production
+        const frontendProtocol = process.env.FRONTEND_PROTOCOL || 'http';
+        const frontendHost = process.env.FRONTEND_HOST || 'localhost:5173';
+        const primaryFormUrl = `${frontendProtocol}://${frontendHost}/group-walkin-leader?visitorId=${mainVisitor.visitor_id}`;
         
         const groupWalkInPrimaryEmailHtml = `
 <!DOCTYPE html>
@@ -1907,13 +1997,21 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
         }
         .registration-button {
             display: inline-block;
-            background: #8B6B21;
-            color: white;
+            background: #8B6B21 !important;
+            color: white !important;
             padding: 12px 24px;
-            text-decoration: none;
+            text-decoration: none !important;
             border-radius: 5px;
             margin: 10px 0;
             font-weight: bold;
+        }
+        a.registration-button,
+        a.registration-button:link,
+        a.registration-button:visited,
+        a.registration-button:hover,
+        a.registration-button:active {
+            color: white !important;
+            text-decoration: none !important;
         }
         .group-info {
             background-color: #e8f4fd;
@@ -2028,10 +2126,21 @@ router.put('/bookings/:id/approve', isAuthenticated, async (req, res) => {
                 <p><strong>Status:</strong> ✅ Approved</p>
             </div>
             
+            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 5px;">
+                <h3 style="color: #856404; margin-top: 0; margin-bottom: 15px;">🔑 Your Backup Code</h3>
+                <p style="margin-bottom: 15px; color: #2e2b41;">Your QR code will be sent after you complete your registration. In the meantime, here's your backup code to use at the museum entrance if needed:</p>
+                <div style="background: #f8f9fa; padding: 20px; text-align: center; margin: 15px 0; border-radius: 5px; border: 2px solid #ffc107;">
+                    <h2 style="color: #8B6B21; font-size: 32px; margin: 0; letter-spacing: 5px; font-family: 'Courier New', monospace; font-weight: bold;">${backupCode}</h2>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #856404;">
+                    <strong>⚠️ Important:</strong> Save this backup code. You can use it if QR code scanning fails at the museum entrance. Your QR code will be sent to you via email after you complete your registration.
+                </p>
+            </div>
+            
             <div class="group-registration">
                 <h3>📋 Complete Your Group Leader Registration</h3>
                 <p>As the group leader, please complete your registration with ALL details including institution and purpose of visit. This information will be shared with all group members.</p>
-                <a href="${primaryFormUrl}" class="registration-button">Complete Group Leader Registration</a>
+                <a href="${primaryFormUrl}" class="registration-button" style="display: inline-block; background: #8B6B21; color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; font-weight: bold;">Complete Group Leader Registration</a>
             </div>
             
             <div class="group-info">
@@ -2708,7 +2817,10 @@ router.post('/visit/qr-scan', async (req, res) => {
              console.error('❌ Group walk-in check-in failed:', errorData);
              return res.status(checkinResponse.status).json({
                success: false,
-               error: errorData.message || 'Failed to check in group walk-in visitor'
+               error: errorData.error || errorData.message || 'Failed to check in group walk-in visitor',
+               status: errorData.status,
+               message: errorData.message,
+               missingFields: errorData.missingFields
              });
            }
            

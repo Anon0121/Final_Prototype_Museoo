@@ -89,7 +89,12 @@ const Donation = () => {
     message: '',
     onConfirm: null,
     donationId: null,
-    donorName: ''
+    donorName: '',
+    // Optional input support (for reasons, notes, etc.)
+    inputEnabled: false,
+    inputLabel: '',
+    inputPlaceholder: '',
+    inputValue: ''
   });
 
   useEffect(() => {
@@ -273,13 +278,7 @@ const Donation = () => {
 
   const handleReject = async (donationId) => {
     console.log('🔄 handleReject called for donation ID:', donationId);
-    const rejectionReason = window.prompt(
-      'Please provide a reason for rejecting this donation request (optional):\n\nThis will be included in the email notification to the donor.',
-      'Unable to schedule meeting at this time'
-    );
-    
-    if (rejectionReason === null) return; // User cancelled
-    
+    // Use custom modal with input instead of browser prompt
     setConfirmationModal({
       show: true,
       title: 'Reject Donation',
@@ -287,7 +286,11 @@ const Donation = () => {
       description: 'This will mark the donation as rejected and send an email notification to the donor.',
       donationId: donationId,
       donorName: 'donor',
-      onConfirm: () => executeReject(donationId, rejectionReason)
+      inputEnabled: true,
+      inputLabel: 'Rejection Reason (optional)',
+      inputPlaceholder: 'Unable to schedule meeting at this time',
+      inputValue: 'Unable to schedule meeting at this time',
+      onConfirm: (val) => executeReject(donationId, val)
     });
   };
 
@@ -1430,30 +1433,6 @@ const Donation = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
-              className="px-4 md:px-6 py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base bg-gray-100 text-gray-700 hover:bg-gray-200"
-              style={{fontFamily: 'Telegraf, sans-serif'}}
-            >
-              <i className="fa-solid fa-th-large mr-2"></i>
-              {viewMode === "table" ? "Card View" : "Table View"}
-            </button>
-            <button
-              onClick={() => setShowEmailTest(!showEmailTest)}
-              className="px-4 md:px-6 py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base bg-blue-500 text-white hover:bg-blue-600"
-              style={{fontFamily: 'Telegraf, sans-serif'}}
-            >
-              <i className="fa-solid fa-envelope mr-2"></i>
-              Test Email
-            </button>
-            <button
-              onClick={() => window.open('/admin/donation-analytics', '_blank')}
-              className="px-4 md:px-6 py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base bg-blue-500 text-white hover:bg-blue-600"
-              style={{fontFamily: 'Telegraf, sans-serif'}}
-            >
-              <i className="fa-solid fa-chart-line mr-2"></i>
-              Analytics
-            </button>
-            <button
               onClick={() => {
                 setShowAddRequestModal(true);
               }}
@@ -1556,50 +1535,50 @@ const Donation = () => {
             Filter by Process Stage
           </h3>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1 sm:gap-2">
           <button
             onClick={() => setActiveTab("all")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-sm ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-xs sm:text-sm ${
               activeTab === "all"
                 ? "bg-[#E5B80B] text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            All Stages ({donations.length})
+            All ({donations.length})
           </button>
           <button
             onClick={() => setActiveTab("request_meeting")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-sm ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-xs sm:text-sm ${
               activeTab === "request_meeting"
                 ? "bg-[#E5B80B] text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Request Meeting ({donations.filter(d => d.processing_stage === "request_meeting").length})
+            <span className="hidden sm:inline">Request </span>Meeting ({donations.filter(d => d.processing_stage === "request_meeting").length})
           </button>
           <button
             onClick={() => setActiveTab("scheduled_meeting")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-sm ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-xs sm:text-sm ${
               activeTab === "scheduled_meeting"
                 ? "bg-[#E5B80B] text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Scheduled Meeting ({donations.filter(d => d.processing_stage === "schedule_meeting").length})
+            <span className="hidden sm:inline">Scheduled </span>Meeting ({donations.filter(d => d.processing_stage === "schedule_meeting").length})
           </button>
           <button
             onClick={() => setActiveTab("finished_meeting")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-sm ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-xs sm:text-sm ${
               activeTab === "finished_meeting"
                 ? "bg-[#E5B80B] text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Finished Meeting ({donations.filter(d => d.processing_stage === "finished_meeting").length})
+            <span className="hidden sm:inline">Finished </span>Meeting ({donations.filter(d => d.processing_stage === "finished_meeting").length})
           </button>
           <button
             onClick={() => setActiveTab("city_hall")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-sm ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-xs sm:text-sm ${
               activeTab === "city_hall"
                 ? "bg-[#E5B80B] text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -1609,7 +1588,7 @@ const Donation = () => {
           </button>
           <button
             onClick={() => setActiveTab("completed")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-sm ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-xs sm:text-sm ${
               activeTab === "completed"
                 ? "bg-[#E5B80B] text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -1664,8 +1643,8 @@ const Donation = () => {
             </div>
           </div>
         </div>
-        {viewMode === 'table' ? (
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full min-w-[1000px]">
             <thead className="bg-gradient-to-r from-[#351E10] to-[#2A1A0D]">
               <tr>
@@ -1886,7 +1865,188 @@ const Donation = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="lg:hidden p-4 space-y-4">
+          {filteredDonations.map((donation) => (
+            <div key={donation.id} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+              {/* Card Header */}
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-[#351E10]" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      {donation.donor_name}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">{donation.donor_email}</p>
+                    {donation.donor_contact && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        <i className="fa-solid fa-phone mr-1"></i>
+                        {donation.donor_contact}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end space-y-2">
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                      donation.type === 'monetary' ? 'bg-green-100 text-green-800' :
+                      donation.type === 'artifact' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {donation.type}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getProcessStatusBadge(donation.processing_stage)}`}>
+                      {donation.processing_stage?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Body */}
+              <div className="p-4 space-y-3">
+                {/* Details Section */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Details</h4>
+                  <div className="space-y-2">
+                    {donation.type === 'monetary' && donation.amount && (
+                      <div className="font-bold text-green-600 bg-green-50 rounded px-3 py-2 text-sm">
+                        Amount: ₱{parseFloat(donation.amount).toLocaleString()}
+                      </div>
+                    )}
+                    {donation.item_description && (
+                      <div className="text-gray-600 bg-blue-50 rounded px-3 py-2 text-sm">
+                        {donation.item_description}
+                      </div>
+                    )}
+                    {donation.estimated_value && (
+                      <div className="text-sm text-gray-500">
+                        Est. Value: ₱{parseFloat(donation.estimated_value).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Date and Meeting Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">Request Date</h4>
+                    <div className="bg-gray-50 rounded px-3 py-2 text-sm">
+                      {donation.request_date ? new Date(donation.request_date).toLocaleDateString() : '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">Meeting</h4>
+                    {donation.preferred_visit_date && donation.preferred_visit_time ? (
+                      <div className="bg-blue-50 rounded px-3 py-2 text-sm">
+                        <div className="font-medium">{new Date(donation.preferred_visit_date).toLocaleDateString()}</div>
+                        <div className="text-gray-500">{donation.preferred_visit_time}</div>
+        </div>
           ) : (
+                      <div className="text-gray-400 bg-gray-50 rounded px-3 py-2 text-sm">-</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Footer - Actions */}
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {/* View Details Button */}
+                  <button
+                    onClick={() => {
+                      setSelectedDonation(donation);
+                      setSelectedFileIndex(0);
+                      setShowDetailsModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-600 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <i className="fa-solid fa-eye mr-1"></i>
+                    View
+                  </button>
+
+                  {/* Contextual Action buttons based on process stage */}
+                  {donation.processing_stage === 'request_meeting' && (
+                    <button
+                      onClick={() => {
+                        console.log('🔄 Schedule button clicked for donation:', donation.id);
+                        setSelectedDonation(donation);
+                        setShowScheduleModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <i className="fa-solid fa-calendar-plus mr-1"></i>
+                      Schedule
+                    </button>
+                  )}
+
+                  {donation.processing_stage === 'schedule_meeting' && (
+                    <button
+                      onClick={() => {
+                        console.log('🔄 Complete Meeting button clicked for donation:', donation.id);
+                        setSelectedDonation(donation);
+                        setShowCompleteMeetingModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <i className="fa-solid fa-check-circle mr-1"></i>
+                      Complete
+                    </button>
+                  )}
+
+                  {donation.processing_stage === 'finished_meeting' && (
+                    <button
+                      onClick={() => {
+                        console.log('🔄 Send to City Hall button clicked for donation:', donation.id);
+                        setSelectedDonation(donation);
+                        setShowCityHallModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <i className="fa-solid fa-building mr-1"></i>
+                      City Hall
+                    </button>
+                  )}
+
+                  {donation.processing_stage === 'city_hall' && (
+                    <button
+                      onClick={() => {
+                        console.log('🔄 Complete Donation button clicked for donation:', donation.id);
+                        setSelectedDonation(donation);
+                        setShowCompleteDonationModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <i className="fa-solid fa-check mr-1"></i>
+                      Complete
+                    </button>
+                  )}
+
+                  {donation.processing_stage === 'complete' && (
+                    <button
+                      onClick={() => downloadAppreciationLetter(donation.id, donation.donor_name)}
+                      className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <i className="fa-solid fa-download mr-1"></i>
+                      Letter
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      console.log('🔄 Delete button clicked for donation:', donation.id, 'from donor:', donation.donor_name);
+                      handleDelete(donation.id, donation.donor_name);
+                    }}
+                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <i className="fa-solid fa-trash mr-1"></i>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Card View (Original) */}
+        {viewMode === 'cards' && (
             /* Card View - Museum Style Layout */
             <div className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2088,6 +2248,7 @@ const Donation = () => {
               </div>
             </div>
           )}
+
         {filteredDonations.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2212,46 +2373,47 @@ const Donation = () => {
               <div className="absolute top-4 right-4 w-8 h-8 border-2 border-[#E5B80B]/20 rounded-full"></div>
               <div className="absolute top-8 right-12 w-4 h-4 border border-[#E5B80B]/15 rounded-full"></div>
               
-              <div className="relative p-6 flex items-center justify-between">
-                <div className="flex items-center space-x-5">
-                  <div className="w-12 h-12 bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] rounded-xl flex items-center justify-center shadow-lg">
-                    <i className="fa-solid fa-museum text-white text-xl"></i>
+              <div className="relative p-4 sm:p-6 flex items-center justify-between">
+                <div className="flex items-center space-x-3 sm:space-x-5">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] rounded-xl flex items-center justify-center shadow-lg">
+                    <i className="fa-solid fa-museum text-white text-lg sm:text-xl"></i>
                   </div>
                   <div> 
-                    
-                    <h3 className="text-2xl font-bold mb-1" style={{fontFamily: 'Playfair Display, serif'}}>
+                    <h3 className="text-xl sm:text-2xl font-bold mb-1" style={{fontFamily: 'Playfair Display, serif'}}>
                       Heritage Collection
                     </h3>
-                    <p className="text-[#E5B80B] text-base" style={{fontFamily: 'Inter, sans-serif'}}>
+                    <p className="text-[#E5B80B] text-sm sm:text-base" style={{fontFamily: 'Inter, sans-serif'}}>
                       Donation Archive • {selectedDonation.donor_name}
                     </p>
                   </div>
                 </div>
                 
                 
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   <button
                     onClick={handlePrintDetails}
-                    className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-5 py-2.5 rounded-lg transition-all duration-300 text-sm font-semibold flex items-center space-x-2 border border-white/20 hover:border-white/30"
+                    className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg transition-all duration-300 text-xs sm:text-sm font-semibold flex items-center space-x-1 sm:space-x-2 border border-white/20 hover:border-white/30"
                   >
-                    <i className="fa-solid fa-print"></i>
-                    <span>Print Record</span>
+                    <i className="fa-solid fa-print text-xs sm:text-sm"></i>
+                    <span className="hidden sm:inline">Print Record</span>
+                    <span className="sm:hidden">Print</span>
                   </button>
                   <button
                     onClick={handleExportPDF}
-                    className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-5 py-2.5 rounded-lg transition-all duration-300 text-sm font-semibold flex items-center space-x-2 border border-white/20 hover:border-white/30"
+                    className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg transition-all duration-300 text-xs sm:text-sm font-semibold flex items-center space-x-1 sm:space-x-2 border border-white/20 hover:border-white/30"
                   >
-                    <i className="fa-solid fa-file-pdf"></i>
-                    <span>Export Archive</span>
+                    <i className="fa-solid fa-file-pdf text-xs sm:text-sm"></i>
+                    <span className="hidden sm:inline">Export Archive</span>
+                    <span className="sm:hidden">Export</span>
                   </button>
                   <button
                     onClick={() => {
                       setShowDetailsModal(false);
                       setSelectedDonation(null);
                     }}
-                    className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white p-2.5 rounded-lg transition-all duration-300 border border-white/20 hover:border-white/30"
+                    className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white p-2 sm:p-2.5 rounded-lg transition-all duration-300 border border-white/20 hover:border-white/30"
                   >
-                    <i className="fa-solid fa-times"></i>
+                    <i className="fa-solid fa-times text-xs sm:text-sm"></i>
                   </button>
                 </div>
               </div>
@@ -2259,33 +2421,33 @@ const Donation = () => {
             
             
             {/* Modern Museum Content Area - Clean Organized Layout */}
-            <div className="bg-gray-50 p-6 overflow-y-auto max-h-[calc(95vh-120px)]">
+            <div className="bg-gray-50 p-3 sm:p-4 lg:p-6 overflow-y-auto max-h-[calc(95vh-120px)]">
               <div className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                   
                   {/* Left Column - Essential Information */}
-                  <div className="lg:col-span-1 space-y-4">
+                  <div className="lg:col-span-1">
                   {/* Donor Information Card - Modern Clean Design */}
                   <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <div className="p-4 border-b border-gray-100">
+                    <div className="p-3 sm:p-4 border-b border-gray-100">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <i className="fa-solid fa-user text-blue-600 text-sm"></i>
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <i className="fa-solid fa-user text-blue-600 text-xs sm:text-sm"></i>
                           </div>
                           <div>
-                            <h4 className="font-semibold text-gray-900">Donor Information</h4>
+                            <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Donor Information</h4>
                             {!expandedSections.donor && (
-                              <p className="text-gray-700 text-sm font-medium">{selectedDonation.donor_name}</p>
+                              <p className="text-gray-700 text-xs sm:text-sm font-medium">{selectedDonation.donor_name}</p>
                             )}
                             {expandedSections.donor && (
-                              <p className="text-gray-500 text-sm">Contact details</p>
+                              <p className="text-gray-500 text-xs sm:text-sm">Contact details</p>
                             )}
                           </div>
                         </div>
                         <button
                           onClick={() => toggleSection('donor')}
-                          className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                          className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
                         >
                           <i className={`fa-solid fa-chevron-${expandedSections.donor ? 'up' : 'down'} text-gray-600 text-xs`}></i>
                         </button>
@@ -2293,70 +2455,46 @@ const Donation = () => {
                     </div>
                     
                     {expandedSections.donor && (
-                      <div className="p-4 space-y-3">
-                        <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <i className="fa-solid fa-user text-gray-600 text-sm"></i>
+                      <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+                        <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-lg">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <i className="fa-solid fa-user text-gray-600 text-xs sm:text-sm"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{selectedDonation.donor_name}</p>
-                            <p className="text-gray-500 text-sm">Donor Name</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{selectedDonation.donor_name}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm">Donor Name</p>
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <i className="fa-solid fa-envelope text-gray-600 text-sm"></i>
+                        <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-lg">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <i className="fa-solid fa-envelope text-gray-600 text-xs sm:text-sm"></i>
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{selectedDonation.donor_email}</p>
-                            <p className="text-gray-500 text-sm">Email Address</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{selectedDonation.donor_email}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm">Email Address</p>
                           </div>
                         </div>
                         
                         {selectedDonation.donor_contact && (
-                          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                              <i className="fa-solid fa-phone text-gray-600 text-sm"></i>
+                          <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-lg">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                              <i className="fa-solid fa-phone text-gray-600 text-xs sm:text-sm"></i>
                             </div>
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{selectedDonation.donor_contact}</p>
-                              <p className="text-gray-500 text-sm">Phone Number</p>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{selectedDonation.donor_contact}</p>
+                              <p className="text-gray-500 text-xs sm:text-sm">Phone Number</p>
                             </div>
                           </div>
                         )}
                       </div>
                     )}
                   </div>
-                  
-                  {/* Status & Request Info Card */}
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200">
-                    <div className="flex items-center mb-4">
-                      <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center mr-3">
-                        <i className="fa-solid fa-info-circle text-white"></i>
-                      </div>
-                      <h4 className="text-lg font-semibold text-gray-800">Request Status</h4>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Status</span>
-                        <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${getProcessStatusBadge(selectedDonation.processing_stage)}`}>
-                          {selectedDonation.processing_stage?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Request Date</span>
-                        <span className="font-medium text-gray-900">
-                          {selectedDonation.request_date ? new Date(selectedDonation.request_date).toLocaleDateString() : 'No date'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
                   </div>
                   
                   {/* Meeting Information */}
                   {(selectedDonation.preferred_visit_date || selectedDonation.preferred_visit_time || selectedDonation.scheduled_date || selectedDonation.scheduled_time) && (
-                    <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-5 border border-orange-100">
+                    <div className="lg:col-span-1 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-5 border border-orange-100">
                       <div className="flex items-center mb-4">
                         <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center mr-3">
                           <i className="fa-solid fa-calendar text-white"></i>
@@ -2403,6 +2541,30 @@ const Donation = () => {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Request Status - Right Column */}
+                  <div className="lg:col-span-1 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 sm:p-4 lg:p-5 border border-gray-200">
+                    <div className="flex items-center mb-3 sm:mb-4">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                        <i className="fa-solid fa-info-circle text-white text-sm sm:text-base"></i>
+                      </div>
+                      <h4 className="text-base sm:text-lg font-semibold text-gray-800">Request Status</h4>
+                    </div>
+                    <div className="space-y-2 sm:space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs sm:text-sm text-gray-600">Status</span>
+                        <span className={`inline-flex items-center px-2 sm:px-3 py-1 text-xs font-medium rounded-full ${getProcessStatusBadge(selectedDonation.processing_stage)}`}>
+                          {selectedDonation.processing_stage?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs sm:text-sm text-gray-600">Request Date</span>
+                        <span className="font-medium text-gray-900 text-xs sm:text-sm">
+                          {selectedDonation.request_date ? new Date(selectedDonation.request_date).toLocaleDateString() : 'No date'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                   {/* Right Column - Main Content */}
@@ -2596,9 +2758,14 @@ const Donation = () => {
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
                             <h5 className="font-semibold text-gray-900">Request Received</h5>
-                            <span className="text-sm text-gray-500">
-                              {selectedDonation.request_date ? new Date(selectedDonation.request_date).toLocaleDateString() : 'Unknown'}
-                            </span>
+                            <div className="text-right text-sm text-gray-500">
+                              {selectedDonation.request_date ? (
+                                <>
+                                  <div>Date: {new Date(selectedDonation.request_date).toLocaleDateString()}</div>
+                                  <div>Time: {new Date(selectedDonation.request_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                </>
+                              ) : 'Unknown'}
+                            </div>
                           </div>
                           <p className="text-sm text-gray-600">Donation request submitted by {selectedDonation.donor_name}</p>
                         </div>
@@ -2613,13 +2780,13 @@ const Donation = () => {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h5 className="font-semibold text-gray-900">Meeting Scheduled</h5>
-                              <span className="text-sm text-gray-500">
-                                {new Date(selectedDonation.scheduled_date).toLocaleDateString()}
-                              </span>
+                              <div className="text-right text-sm text-gray-500">
+                                <div>Date: {new Date(selectedDonation.scheduled_date).toLocaleDateString()}</div>
+                                <div>Time: {selectedDonation.scheduled_time || 'TBD'}</div>
+                              </div>
                             </div>
                             <p className="text-sm text-gray-600">
-                              Meeting scheduled for {selectedDonation.scheduled_time || 'TBD'}
-                              {selectedDonation.location && ` at ${selectedDonation.location}`}
+                              {selectedDonation.location && `Meeting at ${selectedDonation.location}`}
                             </p>
                           </div>
                         </div>
@@ -2634,9 +2801,14 @@ const Donation = () => {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h5 className="font-semibold text-gray-900">Meeting Completed</h5>
-                              <span className="text-sm text-gray-500">
-                                {selectedDonation.meeting_completed_date ? new Date(selectedDonation.meeting_completed_date).toLocaleDateString() : 'Unknown'}
-                              </span>
+                              <div className="text-right text-sm text-gray-500">
+                                {selectedDonation.meeting_completed_date ? (
+                                  <>
+                                    <div>Date: {new Date(selectedDonation.meeting_completed_date).toLocaleDateString()}</div>
+                                    <div>Time: {new Date(selectedDonation.meeting_completed_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </>
+                                ) : 'Unknown'}
+                              </div>
                             </div>
                             <p className="text-sm text-gray-600">
                               Initial meeting completed with donor
@@ -2651,7 +2823,7 @@ const Donation = () => {
                       )}
                       
                       {/* City Hall Submission */}
-                      {selectedDonation.city_hall_submitted && (
+                      {(selectedDonation.city_hall_submission_date || selectedDonation.processing_stage === 'city_hall' || selectedDonation.processing_stage === 'complete') && (
                         <div className="flex items-start space-x-3">
                           <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0">
                             <i className="fa-solid fa-building text-white text-sm"></i>
@@ -2659,9 +2831,19 @@ const Donation = () => {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h5 className="font-semibold text-gray-900">Submitted to City Hall</h5>
-                              <span className="text-sm text-gray-500">
-                                {selectedDonation.city_hall_submission_date ? new Date(selectedDonation.city_hall_submission_date).toLocaleDateString() : 'Unknown'}
-                              </span>
+                              <div className="text-right text-sm text-gray-500">
+                                {selectedDonation.city_hall_submission_date ? (
+                                  <>
+                                    <div>Date: {new Date(selectedDonation.city_hall_submission_date).toLocaleDateString()}</div>
+                                    <div>Time: {new Date(selectedDonation.city_hall_submission_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </>
+                                ) : selectedDonation.updated_at && (selectedDonation.processing_stage === 'city_hall' || selectedDonation.processing_stage === 'complete') ? (
+                                  <>
+                                    <div>Date: {new Date(selectedDonation.updated_at).toLocaleDateString()}</div>
+                                    <div>Time: {new Date(selectedDonation.updated_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </>
+                                ) : 'Unknown'}
+                              </div>
                             </div>
                             <p className="text-sm text-gray-600">
                               Donation submitted for city hall approval
@@ -2676,7 +2858,7 @@ const Donation = () => {
                       )}
                       
                       {/* City Hall Approval */}
-                      {selectedDonation.city_hall_approved && (
+                      {selectedDonation.city_hall_approval_date && (
                         <div className="flex items-start space-x-3">
                           <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center flex-shrink-0">
                             <i className="fa-solid fa-check-circle text-white text-sm"></i>
@@ -2684,9 +2866,14 @@ const Donation = () => {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h5 className="font-semibold text-gray-900">City Hall Approved</h5>
-                              <span className="text-sm text-gray-500">
-                                {selectedDonation.city_hall_approval_date ? new Date(selectedDonation.city_hall_approval_date).toLocaleDateString() : 'Unknown'}
-                              </span>
+                              <div className="text-right text-sm text-gray-500">
+                                {selectedDonation.city_hall_approval_date ? (
+                                  <>
+                                    <div>Date: {new Date(selectedDonation.city_hall_approval_date).toLocaleDateString()}</div>
+                                    <div>Time: {new Date(selectedDonation.city_hall_approval_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </>
+                                ) : 'Unknown'}
+                              </div>
                             </div>
                             <p className="text-sm text-gray-600">
                               City hall has approved the donation
@@ -2695,21 +2882,31 @@ const Donation = () => {
                         </div>
                       )}
                       
-                      {/* Final Approval */}
-                      {selectedDonation.final_approval_date && (
+                      {/* Final Approval / Complete */}
+                      {(selectedDonation.final_approval_date || selectedDonation.processing_stage === 'complete') && (
                         <div className="flex items-start space-x-3">
                           <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
                             <i className="fa-solid fa-star text-white text-sm"></i>
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
-                              <h5 className="font-semibold text-gray-900">Final Approval</h5>
-                              <span className="text-sm text-gray-500">
-                                {new Date(selectedDonation.final_approval_date).toLocaleDateString()}
-                              </span>
+                              <h5 className="font-semibold text-gray-900">Complete</h5>
+                              <div className="text-right text-sm text-gray-500">
+                                {selectedDonation.final_approval_date ? (
+                                  <>
+                                    <div>Date: {new Date(selectedDonation.final_approval_date).toLocaleDateString()}</div>
+                                    <div>Time: {new Date(selectedDonation.final_approval_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </>
+                                ) : selectedDonation.created_at ? (
+                                  <>
+                                    <div>Date: {new Date(selectedDonation.created_at).toLocaleDateString()}</div>
+                                    <div>Time: {new Date(selectedDonation.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </>
+                                ) : 'Unknown'}
+                              </div>
                             </div>
                             <p className="text-sm text-gray-600">
-                              Donation has been finally approved and gratitude email sent
+                              Donation process completed successfully
                             </p>
                           </div>
                         </div>
@@ -2832,19 +3029,19 @@ const Donation = () => {
                   <div className="space-y-4">
                     {selectedDonation.attachment_paths && selectedDonation.attachment_paths.split(',').length > 0 ? (
                       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="flex h-[800px]">
-                          {/* Left Side - Document Preview */}
-                          <div className="flex-1 bg-gray-50 border-r border-gray-200">
+                        <div className="flex flex-col lg:flex-row h-[600px] lg:h-[800px]">
+                          {/* Document Preview - Mobile First */}
+                          <div className="flex-1 bg-gray-50 lg:border-r border-gray-200">
                             <div className="h-full flex flex-col">
-                              {/* Preview Header */}
-                              <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+                              {/* Preview Header - Mobile Responsive */}
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 border-b border-gray-200 bg-white gap-3">
                                 <div className="flex items-center space-x-3">
-                                  <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                    <i className="fa-solid fa-folder text-yellow-600"></i>
+                                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                    <i className="fa-solid fa-folder text-yellow-600 text-sm"></i>
                                   </div>
-                                  <h4 className="font-semibold text-gray-800">Document Preview</h4>
+                                  <h4 className="font-semibold text-gray-800 text-sm sm:text-base">Document Preview</h4>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-2 w-full sm:w-auto">
                                   <button 
                                     onClick={() => {
                                       const currentPath = selectedDonation.attachment_paths.split(',')[selectedFileIndex];
@@ -2861,10 +3058,11 @@ const Donation = () => {
                                       }
                                       window.open(filePath, '_blank');
                                     }}
-                                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center space-x-1"
+                                    className="flex-1 sm:flex-none bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-1"
                                   >
                                     <i className="fa-solid fa-external-link-alt"></i>
-                                    <span>Open</span>
+                                    <span className="hidden sm:inline">Open</span>
+                                    <span className="sm:hidden">View</span>
                                   </button>
                                   <button 
                                     onClick={() => {
@@ -2887,28 +3085,46 @@ const Donation = () => {
                                       link.rel = 'noopener noreferrer';
                                       link.click();
                                     }}
-                                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center space-x-1"
+                                    className="flex-1 sm:flex-none bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center space-x-1"
                                   >
                                     <i className="fa-solid fa-download"></i>
-                                    <span>Download</span>
+                                    <span className="hidden sm:inline">Download</span>
+                                    <span className="sm:hidden">Save</span>
                                   </button>
                                 </div>
                               </div>
                               
-                              {/* Preview Toolbar */}
-                              <div className="flex items-center justify-between p-3 bg-gray-100 border-b border-gray-200">
-                                <div className="flex items-center space-x-3">
+                              {/* Preview Toolbar - Mobile Responsive */}
+                              <div className="flex flex-col sm:flex-row items-center justify-between p-2 sm:p-3 bg-gray-100 border-b border-gray-200 gap-2">
+                                {/* Mobile: File Navigation */}
+                                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                                  <button 
+                                    onClick={() => setSelectedFileIndex(Math.max(0, selectedFileIndex - 1))}
+                                    disabled={selectedFileIndex === 0}
+                                    className="p-2 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <i className="fa-solid fa-chevron-left text-gray-600"></i>
+                                  </button>
+                                  <span className="text-xs sm:text-sm text-gray-600 px-2 text-center flex-1">
+                                    {selectedFileIndex + 1} of {selectedDonation.attachment_paths.split(',').length}
+                                  </span>
+                                  <button 
+                                    onClick={() => setSelectedFileIndex(Math.min(selectedDonation.attachment_paths.split(',').length - 1, selectedFileIndex + 1))}
+                                    disabled={selectedFileIndex === selectedDonation.attachment_paths.split(',').length - 1}
+                                    className="p-2 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <i className="fa-solid fa-chevron-right text-gray-600"></i>
+                                  </button>
+                                </div>
+                                
+                                {/* Desktop: Full Toolbar */}
+                                <div className="hidden sm:flex items-center space-x-3">
                                   <button className="p-1.5 hover:bg-gray-200 rounded">
                                     <i className="fa-solid fa-list text-gray-600"></i>
                                   </button>
                                   <button className="p-1.5 hover:bg-gray-200 rounded">
                                     <i className="fa-solid fa-file-alt text-gray-600"></i>
                                   </button>
-                                  <button className="p-1.5 hover:bg-gray-200 rounded">
-                                    <i className="fa-solid fa-ellipsis-h text-gray-600"></i>
-                                  </button>
-                                </div>
-                                <div className="flex items-center space-x-3">
                                   <button className="p-1.5 hover:bg-gray-200 rounded">
                                     <i className="fa-solid fa-search-minus text-gray-600"></i>
                                   </button>
@@ -2918,9 +3134,6 @@ const Donation = () => {
                                   <button className="p-1.5 hover:bg-gray-200 rounded">
                                     <i className="fa-solid fa-expand-arrows-alt text-gray-600"></i>
                                   </button>
-                                  <span className="text-sm text-gray-600 px-2">
-                                    {selectedFileIndex + 1} of {selectedDonation.attachment_paths.split(',').length}
-                                  </span>
                                   <button className="p-1.5 hover:bg-gray-200 rounded">
                                     <i className="fa-solid fa-sync-alt text-gray-600"></i>
                                   </button>
@@ -2928,15 +3141,14 @@ const Donation = () => {
                                     <i className="fa-solid fa-print text-gray-600"></i>
                                   </button>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                  <button className="p-1.5 hover:bg-gray-200 rounded">
-                                    <i className="fa-solid fa-search text-gray-600"></i>
+                                
+                                {/* Mobile: Essential Actions */}
+                                <div className="flex items-center space-x-2 sm:hidden">
+                                  <button className="p-2 hover:bg-gray-200 rounded">
+                                    <i className="fa-solid fa-search-plus text-gray-600"></i>
                                   </button>
-                                  <button className="p-1.5 hover:bg-gray-200 rounded">
-                                    <i className="fa-solid fa-file text-gray-600"></i>
-                                  </button>
-                                  <button className="p-1.5 hover:bg-gray-200 rounded">
-                                    <i className="fa-solid fa-ellipsis-h text-gray-600"></i>
+                                  <button className="p-2 hover:bg-gray-200 rounded">
+                                    <i className="fa-solid fa-expand-arrows-alt text-gray-600"></i>
                                   </button>
                                 </div>
                               </div>
@@ -3044,11 +3256,21 @@ const Donation = () => {
                                     testImage.src = imageUrl;
                                     
                                     return (
-                                      <div className="h-full bg-gray-50 relative">
+                                      <div className="h-full bg-gray-50 relative overflow-auto">
+                                        {/* Mobile Image Viewer with Touch Support */}
+                                        <div className="h-full w-full overflow-auto">
                                         <img 
                                           src={imageUrl} 
                                           alt={selectedFile.name}
-                                          className="w-full h-full object-contain"
+                                            className="w-full h-auto min-h-full object-contain touch-pan-x touch-pan-y"
+                                            style={{
+                                              maxWidth: '100%',
+                                              height: 'auto',
+                                              cursor: 'grab',
+                                              userSelect: 'none',
+                                              opacity: 0,
+                                              transition: 'opacity 0.3s ease'
+                                            }}
                                           onLoad={(e) => {
                                             console.log('✅ Image loaded successfully in preview:', imageUrl);
                                             e.target.style.display = 'block';
@@ -3065,14 +3287,26 @@ const Donation = () => {
                                             const fallback = e.target.nextSibling;
                                             if (fallback) fallback.style.display = 'flex';
                                           }}
-                                          style={{opacity: 0, transition: 'opacity 0.3s ease'}}
-                                        />
+                                            onMouseDown={(e) => {
+                                              e.target.style.cursor = 'grabbing';
+                                            }}
+                                            onMouseUp={(e) => {
+                                              e.target.style.cursor = 'grab';
+                                            }}
+                                            onTouchStart={(e) => {
+                                              e.target.style.cursor = 'grabbing';
+                                            }}
+                                            onTouchEnd={(e) => {
+                                              e.target.style.cursor = 'grab';
+                                            }}
+                                          />
+                                        </div>
                                         <div className="hidden absolute inset-0 bg-gray-100 flex items-center justify-center">
-                                          <div className="text-center text-gray-500">
-                                            <i className="fa-solid fa-image text-6xl mb-4"></i>
-                                            <p className="text-lg font-medium">Preview not available</p>
-                                            <p className="text-sm text-gray-400 mt-2">Click Open to view file</p>
-                                            <p className="text-xs text-gray-300 mt-1">URL: {imageUrl}</p>
+                                          <div className="text-center text-gray-500 p-4">
+                                            <i className="fa-solid fa-image text-4xl sm:text-6xl mb-4"></i>
+                                            <p className="text-base sm:text-lg font-medium">Preview not available</p>
+                                            <p className="text-sm text-gray-400 mt-2">Click View to open file</p>
+                                            <p className="text-xs text-gray-300 mt-1 break-all">URL: {imageUrl}</p>
                                           </div>
                                         </div>
                                       </div>
@@ -3094,11 +3328,28 @@ const Donation = () => {
                                     console.log('📄 PDF URL:', pdfUrl);
                                     
                                     return (
-                                      <div className="h-full bg-gray-50">
+                                      <div className="h-full bg-gray-50 flex flex-col">
+                                        {/* Mobile PDF Controls */}
+                                        <div className="flex items-center justify-between p-2 bg-gray-200 border-b border-gray-300 sm:hidden">
+                                          <span className="text-xs text-gray-600 font-medium">PDF Document</span>
+                                          <button 
+                                            onClick={() => window.open(pdfUrl, '_blank')}
+                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                                          >
+                                            Open in New Tab
+                                          </button>
+                                        </div>
+                                        
+                                        {/* PDF Viewer */}
+                                        <div className="flex-1 relative">
                                         <iframe 
-                                          src={pdfUrl}
+                                            src={`${pdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
                                           className="w-full h-full border-0"
                                           title={`PDF Preview: ${selectedFile.name}`}
+                                            style={{
+                                              minHeight: '400px',
+                                              width: '100%'
+                                            }}
                                           onError={(e) => {
                                             console.error('❌ PDF failed to load:', pdfUrl);
                                             e.target.style.display = 'none';
@@ -3106,9 +3357,9 @@ const Donation = () => {
                                           }}
                                         />
                                         <div className="hidden h-full w-full items-center justify-center bg-gray-100">
-                                          <div className="text-center">
-                                            <i className="fa-solid fa-file-pdf text-red-500 text-8xl mb-4"></i>
-                                            <p className="text-xl font-semibold text-gray-700 mb-2">{selectedFile.name}</p>
+                                            <div className="text-center p-4">
+                                              <i className="fa-solid fa-file-pdf text-red-500 text-4xl sm:text-8xl mb-4"></i>
+                                              <p className="text-lg sm:text-xl font-semibold text-gray-700 mb-2 break-words">{selectedFile.name}</p>
                                             <p className="text-gray-500 mb-4">PDF Document</p>
                                             <button 
                                               onClick={() => {
@@ -3118,6 +3369,7 @@ const Donation = () => {
                                             >
                                               Open PDF
                                             </button>
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
@@ -3157,21 +3409,29 @@ const Donation = () => {
                             </div>
                           </div>
                           
-                          {/* Right Side - File List */}
-                          <div className="w-80 bg-white">
+                          {/* File List - Mobile Responsive */}
+                          <div className="w-full lg:w-80 bg-white lg:border-l border-gray-200">
                             <div className="h-full flex flex-col">
-                              {/* File List Header */}
-                              <div className="p-4 border-b border-gray-200">
+                              {/* File List Header - Mobile Responsive */}
+                              <div className="p-3 sm:p-4 border-b border-gray-200">
                                 <div className="flex items-center justify-between">
-                                  <h4 className="font-semibold text-gray-800">Attached Files</h4>
-                                  <span className="text-sm text-gray-500">
+                                  <div>
+                                    <h4 className="font-semibold text-gray-800 text-sm sm:text-base">Attached Files</h4>
+                                    <p className="text-xs sm:text-sm text-gray-500">
                                     {selectedDonation.attachment_paths.split(',').length} files
-                                  </span>
+                                    </p>
+                                  </div>
+                                  {/* Mobile: Show current file info */}
+                                  <div className="lg:hidden text-right">
+                                    <p className="text-xs text-gray-600">
+                                      {selectedFileIndex + 1} of {selectedDonation.attachment_paths.split(',').length}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                               
-                              {/* File List */}
-                              <div className="flex-1 overflow-y-auto">
+                              {/* File List - Mobile Scrollable */}
+                              <div className="flex-1 overflow-y-auto max-h-48 lg:max-h-none">
                                 {selectedDonation.attachment_paths.split(',').map((path, index) => {
                                   const fileName = selectedDonation.attachment_names?.split(',')[index] || 'Unknown';
                                   const fileType = selectedDonation.attachment_types?.split(',')[index] || 'other';
@@ -3191,12 +3451,12 @@ const Donation = () => {
                                         console.log('🖱️ File type:', fileType);
                                         setSelectedFileIndex(index);
                                       }}
-                                      className={`p-4 border-b border-gray-100 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                      className={`p-3 sm:p-4 border-b border-gray-100 cursor-pointer transition-colors hover:bg-gray-50 ${
                                         selectedFileIndex === index ? 'bg-indigo-50 border-indigo-200' : ''
                                       }`}
                                     >
                                       <div className="flex items-start space-x-3">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                                           isPDF ? 'bg-red-100' : 
                                           isDocument ? 'bg-blue-100' : 
                                           isImage ? 'bg-green-100' : 'bg-gray-100'
@@ -3209,13 +3469,13 @@ const Donation = () => {
                                             isPDF ? 'text-red-600' : 
                                             isDocument ? 'text-blue-600' : 
                                             isImage ? 'text-green-600' : 'text-gray-600'
-                                          } text-lg`}></i>
+                                          } text-sm sm:text-lg`}></i>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <p className="font-medium text-gray-900 truncate" title={fileName}>
+                                          <p className="font-medium text-gray-900 truncate text-sm sm:text-base" title={fileName}>
                                             {fileName}
                                           </p>
-                                          <p className="text-sm text-gray-500 capitalize">
+                                          <p className="text-xs sm:text-sm text-gray-500 capitalize">
                                             {fileType.replace('_', ' ')}
                                           </p>
                                           {selectedFileIndex === index && (
@@ -3232,8 +3492,8 @@ const Donation = () => {
                                 })}
                               </div>
                               
-                              {/* File Actions */}
-                              <div className="p-4 border-t border-gray-200 bg-gray-50">
+                              {/* File Actions - Mobile Responsive */}
+                              <div className="p-3 sm:p-4 border-t border-gray-200 bg-gray-50">
                                 <div className="space-y-2">
                                   <button 
                                     onClick={() => {
@@ -3259,10 +3519,11 @@ const Donation = () => {
                                         link.click();
                                       });
                                     }}
-                                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
+                                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 text-sm sm:text-base"
                                   >
                                     <i className="fa-solid fa-download"></i>
-                                    <span>Download All Files</span>
+                                    <span className="hidden sm:inline">Download All Files</span>
+                                    <span className="sm:hidden">Download All</span>
                                   </button>
                                 </div>
                               </div>
@@ -3363,18 +3624,18 @@ const Donation = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4">
           <div className="bg-white rounded-xl sm:rounded-3xl shadow-2xl max-w-4xl w-full max-h-[98vh] sm:max-h-[95vh] flex flex-col">
             {/* Modal Header */}
-            <div className="relative p-4" style={{background: 'linear-gradient(135deg, #351E10 0%, #2A1A0D 50%, #1A0F08 100%)'}}>
+            <div className="relative p-8" style={{background: 'linear-gradient(135deg, #351E10 0%, #2A1A0D 50%, #1A0F08 100%)'}}>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#E5B80B]/10 to-transparent"></div>
               <div className="relative flex justify-between items-center">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
-                    <i className="fa-solid fa-calendar-days text-lg text-white"></i>
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
+                    <i className="fa-solid fa-calendar-days text-2xl text-white"></i>
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    <h2 className="text-3xl font-bold text-white" style={{fontFamily: 'Telegraf, sans-serif'}}>
                       Schedule Meeting
                     </h2>
-                    <p className="text-[#E5B80B] text-xs mt-1" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    <p className="text-[#E5B80B] text-sm mt-1" style={{fontFamily: 'Telegraf, sans-serif'}}>
                       Schedule a meeting with {selectedDonation.donor_name} to discuss their donation
                     </p>
                   </div>
@@ -3384,42 +3645,55 @@ const Donation = () => {
                     setShowMeetingModal(false);
                     setShowDetailsModal(true);
                   }}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-300 flex items-center justify-center group"
-                  title="View Full Donation Details"
+                  className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-300 flex items-center justify-center group"
+                  title="Close Modal"
                 >
-                  <i className="fa-solid fa-eye text-white group-hover:scale-110 transition-transform duration-300 text-sm"></i>
+                  <svg className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             </div>
 
             {/* Form Content - Scrollable */}
             <div className="flex-1 overflow-y-auto">
-              <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
+              <div className="p-8 bg-white">
 
-                <form className="space-y-4">
-                  {/* Meeting Date */}
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <h4 className="text-sm font-semibold mb-2 text-gray-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
-                      <i className="fa-solid fa-calendar-days mr-2"></i>
+                <form className="space-y-6">
+                  {/* Meeting Date Section */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
+                        <i className="fa-solid fa-calendar-days text-white"></i>
+                      </div>
                       Schedule Meeting Date
                     </h4>
                     
-                    {/* Donor's Preferred Date - Compact */}
-                    {selectedDonation.preferred_visit_date && (
-                      <div className="mb-2 p-2 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <i className="fa-solid fa-star mr-1 text-amber-600 text-xs"></i>
-                            <span className="text-xs font-medium text-amber-800">Donor's Preferred:</span>
+                    {/* Donor's Preferred Date - Always Visible */}
+                    {selectedDonation.preferred_visit_date || selectedDonation.preferred_visit_time ? (
+                      <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 rounded-xl border-2 border-amber-300 shadow-md">
+                        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center shadow-sm">
+                              <i className="fa-solid fa-star text-white"></i>
                           </div>
-                          <div className="text-xs text-amber-700 font-medium">
+                            <div className="flex-1">
+                              <div className="text-xs font-semibold text-amber-900 uppercase tracking-wide mb-1">Donor's Preferred Meeting Date</div>
+                              <div className="text-base font-bold text-amber-800">
+                                {selectedDonation.preferred_visit_date ? (
+                                  <span>
                             {new Date(selectedDonation.preferred_visit_date).toLocaleDateString('en-US', { 
+                                      weekday: 'short',
                               month: 'short', 
                               day: 'numeric',
                               year: 'numeric'
                             })}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500">No date specified</span>
+                                )}
                             {selectedDonation.preferred_visit_time && (
-                              <span className="ml-1">
+                                  <span className="ml-2">
                                 at {selectedDonation.preferred_visit_time.includes(':') 
                                   ? selectedDonation.preferred_visit_time.substring(0, 5)
                                   : selectedDonation.preferred_visit_time
@@ -3429,24 +3703,11 @@ const Donation = () => {
                           </div>
                         </div>
                       </div>
-                    )}
-                    
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="flex-1">
-                        <input
-                          type="date"
-                          value={meetingData.scheduled_date}
-                          onChange={(e) => setMeetingData({...meetingData, scheduled_date: e.target.value})}
-                          className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent"
-                          style={{fontFamily: 'Telegraf, sans-serif', focusRingColor: '#E5B80B'}}
-                          required
-                        />
                       </div>
-                      {selectedDonation.preferred_visit_date && (
                         <button
                           type="button"
                           onClick={() => {
-                            console.log('🔄 Use Preferred clicked');
+                            console.log('🔄 Use Preferred Date clicked');
                             console.log('📅 Preferred date:', selectedDonation.preferred_visit_date);
                             console.log('⏰ Preferred time:', selectedDonation.preferred_visit_time);
                             
@@ -3491,26 +3752,52 @@ const Donation = () => {
                               scheduled_time: formattedTime || ''
                             });
                           }}
-                          className="bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#B8941F] text-white px-3 py-2 rounded-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl whitespace-nowrap text-sm"
+                          className="w-full bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#B8941F] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl text-sm flex items-center justify-center"
                           style={{fontFamily: 'Telegraf, sans-serif'}}
-                          title="Use donor's preferred date and time"
                         >
-                          <i className="fa-solid fa-calendar-check mr-1 text-xs"></i>
-                          Use Preferred
+                          <i className="fa-solid fa-calendar-check mr-2"></i>
+                          Use Preferred Date
                         </button>
-                      )}
+                      </div>
+                    ) : (
+                      <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm text-gray-600 text-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                          <i className="fa-solid fa-info-circle mr-2 text-gray-400"></i>
+                          No preferred date specified by donor
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="mt-4">
+                      <label className="block text-sm font-semibold mb-2 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                        <i className="fa-solid fa-calendar mr-1" style={{color: '#E5B80B'}}></i>
+                        Select Meeting Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={meetingData.scheduled_date}
+                        onChange={(e) => setMeetingData({...meetingData, scheduled_date: e.target.value})}
+                        className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E5B80B] focus:border-transparent"
+                        style={{fontFamily: 'Telegraf, sans-serif'}}
+                        required
+                      />
                     </div>
                   </div>
 
-                  {/* Time and Location */}
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <h4 className="text-sm font-semibold mb-3 text-gray-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
-                      <i className="fa-solid fa-clock mr-2"></i>
+                  {/* Time and Location Section */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
+                        <i className="fa-solid fa-clock text-white"></i>
+                      </div>
                       Meeting Time & Location
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold mb-1 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>Meeting Time *</label>
+                        <label className="block text-sm font-semibold mb-2 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                          <i className="fa-solid fa-clock mr-1" style={{color: '#E5B80B'}}></i>
+                          Meeting Time *
+                        </label>
                         <input
                           type="time"
                           value={meetingData.scheduled_time}
@@ -3521,7 +3808,10 @@ const Donation = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold mb-1 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>Location *</label>
+                        <label className="block text-sm font-semibold mb-2 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                          <i className="fa-solid fa-map-marker-alt mr-1" style={{color: '#E5B80B'}}></i>
+                          Location *
+                        </label>
                         <input
                           type="text"
                           value={meetingData.location}
@@ -3535,14 +3825,19 @@ const Donation = () => {
                     </div>
                   </div>
 
-                  {/* Staff Member */}
-                  <div className="bg-green-50 p-3 rounded-lg">
-                    <h4 className="text-sm font-semibold mb-3 text-gray-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
-                      <i className="fa-solid fa-user mr-2"></i>
+                  {/* Staff Member Section */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
+                        <i className="fa-solid fa-user text-white"></i>
+                      </div>
                       Staff Member
                     </h4>
                     <div>
-                      <label className="block text-xs font-semibold mb-1 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>Staff Member *</label>
+                      <label className="block text-sm font-semibold mb-2 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                        <i className="fa-solid fa-user mr-1" style={{color: '#E5B80B'}}></i>
+                        Staff Member *
+                      </label>
                       <input
                         type="text"
                         value={meetingData.staff_member}
@@ -3555,14 +3850,19 @@ const Donation = () => {
                     </div>
                   </div>
 
-                  {/* Meeting Notes */}
-                  <div className="bg-purple-50 p-3 rounded-lg">
-                    <h4 className="text-sm font-semibold mb-3 text-gray-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
-                      <i className="fa-solid fa-sticky-note mr-2"></i>
+                  {/* Meeting Notes Section */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
+                        <i className="fa-solid fa-sticky-note text-white"></i>
+                      </div>
                       Meeting Notes
                     </h4>
                     <div>
-                      <label className="block text-xs font-semibold mb-1 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>Additional Notes</label>
+                      <label className="block text-sm font-semibold mb-2 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                        <i className="fa-solid fa-sticky-note mr-1" style={{color: '#E5B80B'}}></i>
+                        Additional Notes
+                      </label>
                       <textarea
                         value={meetingData.meeting_notes}
                         onChange={(e) => setMeetingData({...meetingData, meeting_notes: e.target.value})}
@@ -3574,10 +3874,12 @@ const Donation = () => {
                     </div>
                   </div>
 
-                  {/* Alternative Dates */}
-                  <div className="bg-yellow-50 p-3 rounded-lg">
-                    <h4 className="text-sm font-semibold mb-3 text-gray-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
-                      <i className="fa-solid fa-calendar-days mr-2"></i>
+                  {/* Alternative Dates Section */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style={{background: 'linear-gradient(135deg, #E5B80B, #D4AF37)'}}>
+                        <i className="fa-solid fa-calendar-days text-white"></i>
+                      </div>
                       Alternative Dates (Optional)
                     </h4>
                     <div className="space-y-2">
@@ -3625,13 +3927,13 @@ const Donation = () => {
                         Add Alternative Date
                       </button>
                     </div>
-                    <p className="text-xs text-yellow-800 mt-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    <p className="text-xs text-gray-600 mt-3" style={{fontFamily: 'Telegraf, sans-serif'}}>
                       These dates will be included in the email to the donor as alternatives if the main date doesn't work.
                     </p>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8">
                     <button
                       type="button"
                       onClick={() => {
@@ -3649,10 +3951,12 @@ const Donation = () => {
                         });
                         console.log('✅ Meeting modal closed and form reset');
                       }}
-                      className="flex-1 py-2 px-4 rounded-lg font-semibold transition-all duration-300 shadow-lg border-2 border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
-                      style={{fontFamily: 'Telegraf, sans-serif'}}
+                      className="w-full sm:w-auto px-6 md:px-8 py-2 md:py-3 rounded-lg font-semibold transition-colors shadow-md text-sm md:text-base"
+                      style={{backgroundColor: '#6B7280', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#4B5563'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#6B7280'}
                     >
-                      <i className="fa-solid fa-times mr-1 text-xs"></i>
+                      <i className="fa-solid fa-times mr-2"></i>
                       Cancel
                     </button>
                     <button
@@ -3661,10 +3965,12 @@ const Donation = () => {
                         e.preventDefault();
                         handleScheduleMeeting();
                       }}
-                      className="flex-1 py-2 px-4 rounded-lg font-semibold transition-all duration-300 shadow-lg text-sm"
-                      style={{background: 'linear-gradient(135deg, #8B6B21 0%, #D4AF37 100%)', color: 'white', fontFamily: 'Telegraf, sans-serif'}}
+                      className="w-full sm:w-auto px-6 md:px-8 py-2 md:py-3 rounded-lg font-semibold transition-colors shadow-md text-sm md:text-base"
+                      style={{backgroundColor: '#E5B80B', color: '#351E10', fontFamily: 'Telegraf, sans-serif'}}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#d4a509'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#E5B80B'}
                     >
-                      <i className="fa-solid fa-calendar mr-1 text-xs"></i>
+                      <i className="fa-solid fa-calendar mr-2"></i>
                       Schedule Meeting
                     </button>
                   </div>
@@ -4023,6 +4329,21 @@ const Donation = () => {
               <p className="text-gray-700 text-lg mb-4" style={{fontFamily: 'Telegraf, sans-serif'}}>
                 {confirmationModal.message}
               </p>
+              {confirmationModal.inputEnabled && (
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold mb-2 text-gray-700" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                    {confirmationModal.inputLabel || 'Reason'}
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmationModal.inputValue || ''}
+                    onChange={(e) => setConfirmationModal({ ...confirmationModal, inputValue: e.target.value })}
+                    placeholder={confirmationModal.inputPlaceholder || ''}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300"
+                    style={{fontFamily: 'Telegraf, sans-serif'}}
+                  />
+                </div>
+              )}
               {confirmationModal.description && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                   <p className="text-sm text-red-800 whitespace-pre-line" style={{fontFamily: 'Telegraf, sans-serif'}}>
@@ -4054,7 +4375,7 @@ const Donation = () => {
                     onClick={() => {
                       setConfirmationModal({...confirmationModal, show: false});
                       if (confirmationModal.onConfirm) {
-                        confirmationModal.onConfirm();
+                        confirmationModal.onConfirm(confirmationModal.inputEnabled ? (confirmationModal.inputValue || '') : undefined);
                       }
                     }}
                     className="flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 shadow-lg bg-green-600 hover:bg-green-700 text-white"
@@ -4079,7 +4400,7 @@ const Donation = () => {
                     onClick={() => {
                       setConfirmationModal({...confirmationModal, show: false});
                       if (confirmationModal.onConfirm) {
-                        confirmationModal.onConfirm();
+                        confirmationModal.onConfirm(confirmationModal.inputEnabled ? (confirmationModal.inputValue || '') : undefined);
                       }
                     }}
                     className="flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 shadow-lg bg-red-600 hover:bg-red-700 text-white"

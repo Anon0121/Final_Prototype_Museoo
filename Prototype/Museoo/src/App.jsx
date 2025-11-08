@@ -29,6 +29,8 @@ import LoginForm from "./components/auth/LoginForm";
 import SignupForm from "./components/auth/SignupForm";
 
 import AdminDashboard from "./components/admin/AdminDashboard";
+import CameraTest from "./components/CameraTest";
+import NetworkTest from "./components/admin/NetworkTest";
 
 function App() {
   const [isExhibitModalOpen, setIsExhibitModalOpen] = useState(false);
@@ -81,6 +83,8 @@ function App() {
       <Route path="/login" element={<LoginForm />} />
       <Route path="/signup" element={<SignupForm />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/camera-test" element={<CameraTest />} />
+      <Route path="/network-test" element={<NetworkTest />} />
     </Routes>
   );
 }

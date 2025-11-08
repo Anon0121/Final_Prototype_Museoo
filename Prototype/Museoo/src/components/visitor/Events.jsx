@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../config/api';
+import api, { API_BASE_URL } from '../../config/api';
 import EventRegistration from './EventRegistration';
 
 
@@ -190,119 +190,121 @@ const Events = ({ isModalOpen = false, onModalStateChange, onEventRegistrationMo
 
       <div 
 
-        className="bg-white rounded-2xl shadow-xl p-6 border border-[#E5B80B]/10 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer group"
+        className="bg-white rounded-2xl shadow-xl border border-[#E5B80B]/10 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer group flex flex-col h-full max-w-sm mx-auto"
 
         onClick={() => openEventModal(event)}
 
       >
 
-        {/* Event status badge at the top */}
-
-        {eventStatus && (
-
-          <div className="flex justify-start mb-4">
-
-            <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-              eventStatus.label === 'Event Now' 
-                ? 'bg-emerald-100 text-emerald-800' 
-                : 'bg-[#E5B80B] text-[#351E10]'
-            }`} style={{fontFamily: 'Telegraf, sans-serif'}}>
-
-              {eventStatus.label}
-
-            </span>
-
-          </div>
-
-        )}
-
-        <div className="flex items-start justify-between mb-6">
-
-          <div className="flex-1">
-
-            <h3 className="text-xl font-bold mb-3 text-[#351E10] group-hover:text-[#8B6B21] transition-colors duration-300" style={{fontFamily: 'Telegraf, sans-serif'}}>{event.title}</h3>
-
-            {/* Event Description Preview */}
-            {event.description && (
-              <p className="text-gray-600 text-sm leading-relaxed line-clamp-2 mb-4" style={{fontFamily: 'Lora, serif'}}>
-                {event.description}
-              </p>
+        {/* Event hero image */}
+        <div className="mb-4 rounded-xl overflow-hidden">
+          <div className="relative w-full aspect-[16/9] bg-amber-100/60">
+            {event.images && event.images.length > 0 ? (
+              <img
+                src={`${API_BASE_URL}${event.images[0]}`}
+                alt={event.title}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+            ) : (
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-amber-100 to-amber-200 flex flex-col items-center justify-center text-[#8B6B21]">
+                <i className="fa-solid fa-image text-3xl mb-3"></i>
+                <span className="text-sm font-semibold" style={{fontFamily: 'Telegraf, sans-serif'}}>Event visual coming soon</span>
+              </div>
             )}
-
           </div>
-
-          <div className="w-14 h-14 rounded-xl flex items-center justify-center ml-4 flex-shrink-0 bg-gradient-to-br from-[#8B6B21] to-[#D4AF37] shadow-lg group-hover:shadow-xl transition-all duration-300">
-
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-
-            </svg>
-
-          </div>
-
         </div>
 
-        {/* Event Details */}
-        <div className="space-y-3 mb-6">
-          <div className="flex items-center text-sm text-gray-600">
-            <div className="w-8 h-8 bg-[#E5B80B]/10 rounded-lg flex items-center justify-center mr-3">
-              <svg className="w-4 h-4 text-[#8B6B21]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Event status badge at the top */}
+
+        <div className="px-5 pt-2 flex-1 flex flex-col">
+          <div className="mb-2">
+            {eventStatus && (
+              <div className="flex justify-start">
+                <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
+                  eventStatus.label === 'Event Now' 
+                    ? 'bg-emerald-100 text-emerald-800' 
+                    : 'bg-[#E5B80B] text-[#351E10]'
+                }`} style={{fontFamily: 'Telegraf, sans-serif'}}>
+                  {eventStatus.label}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-start justify-between mb-5">
+            <div className="flex-1">
+              <h3 className="text-lg font-bold mb-2 text-[#351E10] group-hover:text-[#8B6B21] transition-colors duration-300" style={{fontFamily: 'Telegraf, sans-serif'}}>{event.title}</h3>
+              {event.description && (
+                <p className="text-gray-600 text-xs leading-relaxed line-clamp-2 mb-3 min-h-[40px]" style={{fontFamily: 'Lora, serif'}}>
+                  {event.description}
+                </p>
+              )}
+            </div>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center ml-3 flex-shrink-0 bg-gradient-to-br from-[#8B6B21] to-[#D4AF37] shadow-lg group-hover:shadow-xl transition-all duration-300">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <span className="font-medium" style={{fontFamily: 'Telegraf, sans-serif'}}>
-              {new Date(event.start_date).toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                month: 'short', 
-                day: 'numeric' 
-              })}
-            </span>
           </div>
 
-          <div className="flex items-center text-sm text-gray-600">
-            <div className="w-8 h-8 bg-[#E5B80B]/10 rounded-lg flex items-center justify-center mr-3">
-              <svg className="w-4 h-4 text-[#8B6B21]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
+          <div className="space-y-2.5 mb-3">
+            <div className="flex items-center text-sm text-gray-600">
+              <div className="w-8 h-8 bg-[#E5B80B]/10 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-4 h-4 text-[#8B6B21]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <span className="font-medium" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                {new Date(event.start_date).toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </span>
             </div>
-            <span className="font-medium" style={{fontFamily: 'Telegraf, sans-serif'}}>
-              {(event.max_capacity || 50) - (event.current_registrations || 0)} slots available
-            </span>
+            <div className="flex items-center text-sm text-gray-600">
+              <div className="w-8 h-8 bg-[#E5B80B]/10 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-4 h-4 text-[#8B6B21]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <span className="font-medium" style={{fontFamily: 'Telegraf, sans-serif'}}>
+                {(event.max_capacity || 50) - (event.current_registrations || 0)} slots available
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-auto pt-2 pb-2">
+            {(event.current_registrations || 0) >= (event.max_capacity || 50) ? (
+              <button
+                disabled
+                className="w-full bg-gray-300 text-gray-500 py-3 px-4 rounded-xl font-semibold cursor-not-allowed"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                Event Full
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedEventForRegistration(event);
+                  setShowRegistration(true);
+                  if (onEventRegistrationModalChange) {
+                    onEventRegistrationModalChange(true);
+                  }
+                }}
+                className="w-full bg-gradient-to-r from-[#8B6B21] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#8B6B21] text-white py-3 px-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                style={{fontFamily: 'Telegraf, sans-serif'}}
+              >
+                Register Now
+              </button>
+            )}
           </div>
         </div>
-      
-      {/* Registration Button */}
-      <div className="mt-6">
-        {(event.current_registrations || 0) >= (event.max_capacity || 50) ? (
-          <button
-            disabled
-            className="w-full bg-gray-300 text-gray-500 py-3 px-4 rounded-xl font-semibold cursor-not-allowed"
-            style={{fontFamily: 'Telegraf, sans-serif'}}
-          >
-            Event Full
-          </button>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedEventForRegistration(event);
-              setShowRegistration(true);
-              if (onEventRegistrationModalChange) {
-                onEventRegistrationModalChange(true);
-              }
-            }}
-            className="w-full bg-gradient-to-r from-[#8B6B21] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#8B6B21] text-white py-3 px-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-            style={{fontFamily: 'Telegraf, sans-serif'}}
-          >
-            Register Now
-          </button>
-        )}
       </div>
 
-    </div>
-
-  );
+    );
 
   };
 
@@ -489,6 +491,18 @@ const Events = ({ isModalOpen = false, onModalStateChange, onEventRegistrationMo
 
                   {/* Event Details Grid */}
                   <div className="grid md:grid-cols-2 gap-6">
+                    {selectedEvent.images && selectedEvent.images.length > 0 && (
+                      <div className="md:col-span-2">
+                        <div className="rounded-2xl overflow-hidden border border-[#E5B80B]/10 shadow-lg">
+                          <img
+                            src={`${API_BASE_URL}${selectedEvent.images[0]}`}
+                            alt={selectedEvent.title}
+                            className="w-full max-h-[420px] object-cover"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="bg-gradient-to-br from-[#f8f9fa] to-[#f1f3f4] rounded-xl p-4 border border-[#E5B80B]/10">
                       <div className="flex items-center space-x-3 mb-3">
                         <div className="w-8 h-8 bg-[#E5B80B]/10 rounded-lg flex items-center justify-center">

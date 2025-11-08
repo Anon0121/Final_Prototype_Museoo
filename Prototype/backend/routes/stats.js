@@ -12,9 +12,11 @@ router.get('/summary', async (req, res) => {
       totalExhibits,
       totalCulturalObjects,
       totalDonations,
+      donationRequestMeetings,
       totalArchives,
       recentBookings,
       recentDonations,
+      scheduledMeetings,
       recentActivities
     ] = await Promise.all([
       // Count total visitors (from visitors table - only actual visitors, not system users)
@@ -34,6 +36,9 @@ router.get('/summary', async (req, res) => {
       
       // Count donations
       pool.query('SELECT COUNT(*) AS count FROM donations'),
+      
+      // Count donation request meetings (donations with processing_stage = 'request_meeting')
+      pool.query('SELECT COUNT(*) AS count FROM donations WHERE processing_stage = "request_meeting"'),
       
       // Count archives
       pool.query('SELECT COUNT(*) AS count FROM archives'),
@@ -60,6 +65,18 @@ router.get('/summary', async (req, res) => {
       pool.query(`
         SELECT * FROM donations 
         ORDER BY created_at DESC 
+        LIMIT 5
+      `),
+      
+      // Get scheduled meetings (donations with scheduled meetings)
+      pool.query(`
+        SELECT d.*, dd.amount, dd.item_description, dd.estimated_value,
+               d.preferred_visit_date, NULL as scheduled_date, NULL as scheduled_time
+        FROM donations d
+        LEFT JOIN donation_details dd ON d.id = dd.donation_id
+        WHERE d.processing_stage IN ('schedule_meeting', 'finished_meeting')
+        AND d.preferred_visit_date IS NOT NULL
+        ORDER BY d.preferred_visit_date ASC
         LIMIT 5
       `),
       
@@ -121,6 +138,7 @@ router.get('/summary', async (req, res) => {
       exhibits: totalExhibits[0][0].count,
       culturalObjects: totalCulturalObjects[0][0].count,
       donations: totalDonations[0][0].count,
+      donationRequestMeetings: donationRequestMeetings[0][0].count,
       archives: totalArchives[0][0].count,
       
       // Today's statistics
@@ -131,6 +149,7 @@ router.get('/summary', async (req, res) => {
       // Recent activity
       recentBookings: recentBookings[0],
       recentDonations: recentDonations[0],
+      scheduledMeetings: scheduledMeetings[0],
       recentActivities: recentActivities[0],
       todayScheduleVisits: todayScheduleVisits[0]
     });
