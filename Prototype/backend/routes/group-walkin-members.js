@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const router = express.Router();
 const { logActivity } = require('../utils/activityLogger');
+const { isFieldMissing, hasPlaceholderName, normalize } = require('../utils/visitorHelpers');
 
 // Get group walk-in member token info
 router.get('/:tokenId', async (req, res) => {
@@ -254,12 +255,29 @@ router.post('/:visitorId/checkin', async (req, res) => {
        if (additionalVisitor.status !== 'completed') {
          return res.status(400).json({
            success: false,
+           status: 'incomplete',
            error: 'Group walk-in member has not completed their registration form yet. Please complete the form first.'
          });
        }
        
-       // Parse the details to get visitor information
        const details = JSON.parse(additionalVisitor.details || '{}');
+       const firstName = normalize(details.firstName || '');
+       const lastName = normalize(details.lastName || '');
+       const gender = normalize(details.gender || '');
+       const missingFields = [];
+
+       if (isFieldMissing(firstName) || hasPlaceholderName(firstName, '')) missingFields.push('first_name');
+       if (isFieldMissing(lastName) || hasPlaceholderName('', lastName) || hasPlaceholderName(firstName, lastName)) missingFields.push('last_name');
+       if (isFieldMissing(gender)) missingFields.push('gender');
+
+       if (missingFields.length > 0) {
+         return res.status(400).json({
+           success: false,
+           status: 'incomplete',
+           error: 'Group walk-in member has not completed their registration form yet. Please complete the form first.',
+           missingFields
+         });
+       }
        
        // Check if there's already a visitor record for this person
        const [existingVisitorRows] = await pool.query(
@@ -286,14 +304,14 @@ router.post('/:visitorId/checkin', async (req, res) => {
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'visited', false, NOW())`,
            [
              additionalVisitor.booking_id,
-             details.firstName || '',
-             details.lastName || '',
-             details.gender || '',
-             details.address || '',
+             firstName,
+             lastName,
+             gender,
+             normalize(details.address || ''),
              additionalVisitor.email,
-             details.visitorType || '',
-             details.purpose || 'educational',
-             details.institution || '',
+             normalize(details.visitorType || ''),
+             normalize(details.purpose || 'educational'),
+             normalize(details.institution || ''),
            ]
          );
          
@@ -313,14 +331,14 @@ router.post('/:visitorId/checkin', async (req, res) => {
          success: true,
          message: 'Group walk-in member checked in successfully!',
          visitor: {
-           first_name: details.firstName || '',
-           last_name: details.lastName || '',
+           first_name: firstName,
+           last_name: lastName,
            email: additionalVisitor.email,
-           gender: details.gender || '',
-           visitorType: details.visitorType || '',
-           address: details.address || '',
-           institution: details.institution || '',
-           purpose: details.purpose || 'educational',
+           gender,
+           visitorType: normalize(details.visitorType || ''),
+           address: normalize(details.address || ''),
+           institution: normalize(details.institution || ''),
+           purpose: normalize(details.purpose || 'educational'),
            visit_date: additionalVisitor.visit_date,
            visit_time: additionalVisitor.time_slot,
            checkin_time: new Date().toISOString(),
@@ -333,12 +351,38 @@ router.post('/:visitorId/checkin', async (req, res) => {
     
     const visitor = visitorRows[0];
     
+    console.log('🔍 Existing group companion record', {
+      visitorId,
+      first_name: visitor.first_name,
+      last_name: visitor.last_name,
+      gender: visitor.gender,
+      status: visitor.status
+    });
+    
     // Check if booking is valid
     if (visitor.booking_status === 'cancelled') {
       return res.status(400).json({
         success: false,
         error: 'This booking has been cancelled and cannot be checked in.',
         status: visitor.booking_status
+      });
+    }
+
+    const existingFirstName = normalize(visitor.first_name || '');
+    const existingLastName = normalize(visitor.last_name || '');
+    const existingGender = normalize(visitor.gender || '');
+    const existingMissing = [];
+    if (isFieldMissing(existingFirstName) || hasPlaceholderName(existingFirstName, existingLastName)) existingMissing.push('first_name');
+    if (isFieldMissing(existingLastName) || hasPlaceholderName(existingFirstName, existingLastName)) existingMissing.push('last_name');
+    if (isFieldMissing(existingGender)) existingMissing.push('gender');
+
+    if (existingMissing.length > 0) {
+      console.log('🚫 Companion incomplete (visitors table)', existingMissing);
+      return res.status(400).json({
+        success: false,
+        status: 'incomplete',
+        error: 'Group walk-in member has not completed their registration form yet. Please complete the form first.',
+        missingFields: existingMissing
       });
     }
     
@@ -370,10 +414,10 @@ router.post('/:visitorId/checkin', async (req, res) => {
       success: true,
       message: 'Group walk-in member checked in successfully!',
       visitor: {
-        first_name: visitor.first_name,
-        last_name: visitor.last_name,
+        first_name: existingFirstName,
+        last_name: existingLastName,
         email: visitor.email,
-        gender: visitor.gender,
+        gender: existingGender,
         visitorType: visitor.visitor_type,
         address: visitor.address,
         institution: visitor.institution,

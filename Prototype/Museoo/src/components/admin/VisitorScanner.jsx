@@ -17,6 +17,43 @@ const VisitorScanner = () => {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [checkInType, setCheckInType] = useState('visitor'); // 'visitor', 'event'
   const [incompleteFormError, setIncompleteFormError] = useState(null); // Track incomplete form errors
+  const [visitorsCheckedIn, setVisitorsCheckedIn] = useState([]);
+  const INCOMPLETE_INFO_MESSAGE = "Visitor should finish their information before checking in.";
+
+  const valueLooksMissing = (value) => {
+    if (value === null || value === undefined) return true;
+    if (typeof value !== 'string') return value === '';
+    const normalized = value.trim().toLowerCase();
+    return (
+      normalized === '' ||
+      normalized === 'not provided' ||
+      normalized === 'not specified' ||
+      normalized === 'n/a' ||
+      normalized === 'na' ||
+      normalized === 'none' ||
+      normalized === 'unknown' ||
+      normalized === 'null' ||
+      normalized === 'undefined'
+    );
+  };
+
+  const getVisitorField = (visitor, candidates) => {
+    if (!visitor) return '';
+    for (const key of candidates) {
+      if (visitor[key] !== undefined && visitor[key] !== null) {
+        return visitor[key];
+      }
+    }
+    return '';
+  };
+
+  const isVisitorInfoIncomplete = (visitor) => {
+    if (!visitor) return true;
+    const firstName = getVisitorField(visitor, ['firstName', 'first_name', 'firstname']);
+    const lastName = getVisitorField(visitor, ['lastName', 'last_name', 'lastname']);
+    const gender = getVisitorField(visitor, ['gender']);
+    return valueLooksMissing(firstName) || valueLooksMissing(lastName) || valueLooksMissing(gender);
+  };
 
 
   const scannerRef = useRef(null);
@@ -213,10 +250,11 @@ const VisitorScanner = () => {
           } else if (json.status === 'incomplete' || json.status === 'form-incomplete') {
             // Handle incomplete form error from QR code scan
             setIncompleteFormError({
-              message: json.message || json.error || "Please complete your visitor information first.",
+              message: INCOMPLETE_INFO_MESSAGE,
               missingFields: json.missingFields || [],
               email: json.email
             });
+            setScanned("");
             setError("");
           } else {
             setError(json.error || "Visit failed");
@@ -372,10 +410,11 @@ const VisitorScanner = () => {
                 // Check if this is an incomplete form error
                 if (json.status === 'incomplete' || json.status === 'form-incomplete') {
                   setIncompleteFormError({
-                    message: json.message || json.error || "Please complete your visitor information first.",
+                    message: INCOMPLETE_INFO_MESSAGE,
                     missingFields: json.missingFields || [],
                     email: json.email
                   });
+                  setScanned("");
                   setError("");
                 } else {
                   setError(json.error || "Failed to process group walk-in leader QR code");
@@ -404,15 +443,34 @@ const VisitorScanner = () => {
               
               if (json.success) {
                 console.log("✅ Group Walk-in Member Visit Success!");
-                setVisitor({
+                const visitorData = {
                   ...json.visitor,
                   visitorType: 'group_walkin_member',
                   displayType: 'Group Walk-in Member'
-                });
-                setError("");
+                };
+                if (isVisitorInfoIncomplete(visitorData)) {
+                  console.warn('⚠️ Companion visitor information incomplete. Prompting user to complete details.');
+                  setVisitor(null);
+                  setIncompleteFormError({ message: INCOMPLETE_INFO_MESSAGE, missingFields: json.missingFields || [] });
+                  setScanned("");
+                } else {
+                  setVisitor(visitorData);
+                  setError("");
+                  setIncompleteFormError(null);
+                }
               } else {
                 console.error("❌ Group Walk-in Member Check-in Failed:", json.error);
-                setError(json.error || "Failed to process group walk-in member QR code");
+                if (json.status === 'incomplete' || json.status === 'form-incomplete') {
+                  setIncompleteFormError({
+                    message: INCOMPLETE_INFO_MESSAGE,
+                    missingFields: json.missingFields || [],
+                    email: json.email
+                  });
+                  setScanned("");
+                  setError("");
+                } else {
+                  setError(json.error || "Failed to process group walk-in member QR code");
+                }
               }
             } else {
               // Handle regular individual walk-in visitor
@@ -435,22 +493,31 @@ const VisitorScanner = () => {
               
               if (json.success) {
                 console.log("✅ Individual Walk-in Visitor Visit Success!");
-                setVisitor({
+                const visitorData = {
                   ...json.visitor,
                   visitorType: 'walkin_visitor',
                   displayType: 'Walk-in Visitor'
-                });
-                setError("");
-                setIncompleteFormError(null);
+                };
+                if (isVisitorInfoIncomplete(visitorData)) {
+                  console.warn('⚠️ Walk-in visitor information incomplete. Prompting user to complete details.');
+                  setVisitor(null);
+                  setIncompleteFormError({ message: INCOMPLETE_INFO_MESSAGE, missingFields: json.missingFields || [] });
+                  setScanned("");
+                } else {
+                  setVisitor(visitorData);
+                  setError("");
+                  setIncompleteFormError(null);
+                }
               } else {
                 console.error("❌ Individual Walk-in Visitor Check-in Failed:", json.error);
                 // Check if this is an incomplete form error
                 if (json.status === 'incomplete' || json.status === 'form-incomplete') {
                   setIncompleteFormError({
-                    message: json.message || json.error || "Please complete your visitor information first.",
+                    message: INCOMPLETE_INFO_MESSAGE,
                     missingFields: json.missingFields || [],
                     email: json.email
                   });
+                  setScanned("");
                   setError("");
                 } else {
                   setError(json.error || "Failed to process individual walk-in visitor QR code");
@@ -485,10 +552,11 @@ const VisitorScanner = () => {
               // Check if this is an incomplete form error
               if (json.status === 'incomplete' || json.status === 'form-incomplete') {
                 setIncompleteFormError({
-                  message: json.message || json.error || "Please complete your visitor information first.",
+                  message: INCOMPLETE_INFO_MESSAGE,
                   missingFields: json.missingFields || [],
                   email: json.email
                 });
+                setScanned("");
                 setError("");
               } else {
                 setError(json.error || "Failed to process primary visitor QR code");
@@ -601,18 +669,26 @@ const VisitorScanner = () => {
         
         if (visitorJson.success) {
           console.log("✅ Visitor ID validated successfully");
-          setVisitor(visitorJson.visitor);
-          setError("");
-          setIncompleteFormError(null); // Clear incomplete form error
-          setScanned(`Visitor ID: ${backupCode}`);
+          if (isVisitorInfoIncomplete(visitorJson.visitor)) {
+            console.warn('⚠️ Visitor information incomplete (backup code). Prompting user to complete details.');
+            setVisitor(null);
+            setIncompleteFormError({ message: INCOMPLETE_INFO_MESSAGE, missingFields: visitorJson.missingFields || [] });
+            setScanned("");
+          } else {
+            setVisitor(visitorJson.visitor);
+            setError("");
+            setIncompleteFormError(null);
+            setScanned(`Visitor ID: ${backupCode}`);
+          }
         } else {
           // Check if this is an incomplete form error
           if (visitorJson.status === 'incomplete' || visitorJson.status === 'form-incomplete') {
             setIncompleteFormError({
-              message: visitorJson.message || visitorJson.error || "Please complete your visitor information first.",
+              message: INCOMPLETE_INFO_MESSAGE,
               missingFields: visitorJson.missingFields || [],
               email: visitorJson.email
             });
+            setScanned("");
             setError(""); // Clear regular error
           } else {
             // Show detailed error message including missing fields if available
@@ -657,6 +733,7 @@ const VisitorScanner = () => {
     setScanned("");
     setVisitor(null);
     setError("");
+    setIncompleteFormError(null);
     setCameraError("");
     setManualInput("");
     setBackupCode("");
@@ -1205,7 +1282,7 @@ const VisitorScanner = () => {
           )}
           
               {/* Modern Success Message */}
-          {scanned && !error && (
+          {scanned && !error && !incompleteFormError && (
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 shadow-lg">
                   <h3 className="font-semibold text-green-800 mb-3 flex items-center" style={{fontFamily: 'Telegraf, sans-serif'}}>
                     <i className="fa-solid fa-check-circle mr-3 text-green-600"></i>
@@ -1227,23 +1304,6 @@ const VisitorScanner = () => {
                   <div className="text-sm text-amber-800 mb-4 font-semibold" style={{fontFamily: 'Telegraf, sans-serif'}}>
                     This visitor has not completed their required information. Please complete all required fields before checking in.
               </div>
-                  {incompleteFormError.missingFields && incompleteFormError.missingFields.length > 0 && (
-                    <div className="bg-white rounded-lg p-4 border border-amber-200 mb-4">
-                      <p className="text-xs font-semibold text-amber-900 mb-2" style={{fontFamily: 'Telegraf, sans-serif'}}>
-                        Missing Information:
-                      </p>
-                      <ul className="list-disc list-inside text-xs text-amber-800 space-y-1">
-                        {incompleteFormError.missingFields.map((field, index) => (
-                          <li key={index} style={{fontFamily: 'Telegraf, sans-serif'}}>
-                            {field === 'first_name' ? 'First Name' :
-                             field === 'last_name' ? 'Last Name' :
-                             field === 'email' ? 'Email' :
-                             field === 'gender' ? 'Gender' : field}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-xs text-blue-800" style={{fontFamily: 'Telegraf, sans-serif'}}>
                       <i className="fa-solid fa-info-circle mr-2"></i>

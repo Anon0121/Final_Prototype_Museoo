@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const router = express.Router();
 const { logActivity } = require('../utils/activityLogger');
+const { isFieldMissing, hasPlaceholderName, normalize } = require('../utils/visitorHelpers');
 
 // Test endpoint to verify the route is working
 router.get('/test', (req, res) => {
@@ -656,6 +657,27 @@ router.post('/:tokenId/checkin', async (req, res) => {
     if (existingVisitor) {
       // Update existing visitor record
       finalVisitorId = existingVisitor.visitor_id;
+
+      const normalizedFirstName = normalize(existingVisitor.first_name || visitorDetails.firstName || '');
+      const normalizedLastName = normalize(existingVisitor.last_name || visitorDetails.lastName || '');
+      const normalizedGender = normalize(existingVisitor.gender || visitorDetails.gender || '');
+
+      console.log('🔍 Additional visitor normalized fields', { normalizedFirstName, normalizedLastName, normalizedGender });
+
+      const missing = [];
+      if (isFieldMissing(normalizedFirstName) || hasPlaceholderName(normalizedFirstName, normalizedLastName)) missing.push('first_name');
+      if (isFieldMissing(normalizedLastName) || hasPlaceholderName(normalizedFirstName, normalizedLastName)) missing.push('last_name');
+      if (isFieldMissing(normalizedGender)) missing.push('gender');
+
+      if (missing.length > 0) {
+        console.log('🚫 Additional visitor incomplete – existing record', { missing, visitorId: finalVisitorId });
+        return res.status(400).json({
+          success: false,
+          status: 'incomplete',
+          error: 'Visitor has not completed their information.',
+          missingFields: missing
+        });
+      }
       
       // Check if already checked in
       if (existingVisitor.status === 'visited' && existingVisitor.checkin_time) {
@@ -676,10 +698,10 @@ router.post('/:tokenId/checkin', async (req, res) => {
       
       // Use existing data and merge with QR data - prioritize database data
       finalVisitorData = {
-        firstName: existingVisitor.first_name || visitorDetails.firstName || '',
-        lastName: existingVisitor.last_name || visitorDetails.lastName || '',
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
         email: existingVisitor.email || visitorDetails.email || '',
-        gender: existingVisitor.gender || visitorDetails.gender || 'Not specified',
+        gender: normalizedGender || 'Not specified',
         visitorType: existingVisitor.visitor_type || visitorDetails.visitorType || 'Additional Visitor',
         address: existingVisitor.address || visitorDetails.address || 'Not provided',
         institution: existingVisitor.institution || visitorDetails.institution || 'N/A',

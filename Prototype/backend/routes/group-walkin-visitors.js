@@ -1,9 +1,14 @@
 const express = require('express');
 const pool = require('../db');
 const router = express.Router();
-const { logActivity } = require('../utils/activityLogger');
 const QRCode = require('qrcode');
 const nodemailer = require('nodemailer');
+const { logActivity } = require('../utils/activityLogger');
+const fs = require('fs');
+const path = require('path');
+const { isFieldMissing, hasPlaceholderName, normalize } = require('../utils/visitorHelpers');
+
+const getLogoPath = (logoFileName) => path.join(__dirname, '../assets', logoFileName);
 
 // GET - Fetch group walk-in visitor data by token
 router.get('/:token', async (req, res) => {
@@ -544,14 +549,47 @@ router.post('/:token/checkin', async (req, res) => {
 
     const visitor = visitorRows[0];
 
+    console.log('🔍 Additional visitor check-in attempt', {
+      token,
+      status: visitor.status,
+      first_name: visitor.first_name,
+      last_name: visitor.last_name,
+      gender: visitor.gender
+    });
+
     // Check if form has been completed
     if (visitor.status !== 'completed') {
+      console.log('🚫 Companion form not completed (status)', visitor.status);
       return res.status(400).json({
         success: false,
         error: 'Visitor information not completed. Please complete the form first.',
         status: 'incomplete'
       });
     }
+
+    const requiredFields = ['first_name', 'last_name', 'gender'];
+    const safeFirstName = normalize(visitor.first_name || '');
+    const safeLastName = normalize(visitor.last_name || '');
+    const safeGender = normalize(visitor.gender || '');
+    const missingFields = requiredFields.filter(field => {
+      if (field === 'first_name') return isFieldMissing(safeFirstName) || hasPlaceholderName(safeFirstName, safeLastName);
+      if (field === 'last_name') return isFieldMissing(safeLastName) || hasPlaceholderName(safeFirstName, safeLastName);
+      return isFieldMissing(safeGender);
+    });
+
+    console.log('🔍 Companion missing fields evaluation', { missingFields, safeFirstName, safeLastName, gender: visitor.gender });
+
+    if (missingFields.length > 0) {
+      console.log('🚫 Companion blocked due to missing information', missingFields);
+      return res.status(400).json({
+        success: false,
+        status: 'incomplete',
+        error: 'Visitor has not completed their information.',
+        missingFields
+      });
+    }
+
+    const safeFullName = `${safeFirstName} ${safeLastName}`.trim();
 
     // Check if QR code has already been used
     if (visitor.qr_used) {
@@ -576,7 +614,7 @@ router.post('/:token/checkin', async (req, res) => {
     try {
       await logActivity(req, 'group_walkin_visitor.checkin', {
         tokenId: token,
-        visitorName: `${visitor.first_name} ${visitor.last_name}`,
+        visitorName: `${safeFirstName} ${safeLastName}`,
         email: visitor.email
       });
     } catch (logError) {
@@ -585,13 +623,17 @@ router.post('/:token/checkin', async (req, res) => {
 
     res.json({
       success: true,
-      message: `Welcome ${visitor.first_name} ${visitor.last_name}! Check-in successful.`,
+      message: `Welcome ${safeFullName || 'visitor'}! Check-in successful.`,
       visitor: {
-        name: `${visitor.first_name} ${visitor.last_name}`,
+        first_name: safeFirstName,
+        last_name: safeLastName,
         email: visitor.email,
         visitorType: visitor.visitor_type,
-        institution: visitor.institution,
-        purpose: visitor.purpose
+        institution: normalize(visitor.institution || ''),
+        purpose: normalize(visitor.purpose || ''),
+        gender: safeGender,
+        visit_date: visitor.visit_date,
+        time_slot: visitor.time_slot
       }
     });
 
