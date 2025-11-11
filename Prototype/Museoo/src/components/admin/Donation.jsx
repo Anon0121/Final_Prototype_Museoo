@@ -17,6 +17,7 @@ const Donation = () => {
   const [viewMode, setViewMode] = useState("table"); // table or cards
   const [sortBy, setSortBy] = useState("date"); // date, name, status
   const [sortOrder, setSortOrder] = useState("desc"); // asc or desc
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [formData, setFormData] = useState({
     donor_name: "",
@@ -154,39 +155,94 @@ const Donation = () => {
     }
   };
 
-  // Filter donations based on active tab and search
-  const filteredDonations = donations.filter(donation => {
-    const matchesSearch = searchTerm === "" || 
-      donation.donor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      donation.donor_email.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Filter by active tab
-    let matchesTab = false;
-    switch (activeTab) {
-      case "all":
-        matchesTab = true;
+  const handleSortChange = (value) => {
+    switch (value) {
+      case 'name_asc':
+        setSortBy('name');
+        setSortOrder('asc');
         break;
-      case "request_meeting":
-        matchesTab = donation.processing_stage === "request_meeting";
+      case 'name_desc':
+        setSortBy('name');
+        setSortOrder('desc');
         break;
-      case "scheduled_meeting":
-        matchesTab = donation.processing_stage === "schedule_meeting";
+      case 'date_asc':
+        setSortBy('date');
+        setSortOrder('asc');
         break;
-      case "finished_meeting":
-        matchesTab = donation.processing_stage === "finished_meeting";
+      case 'status_asc':
+        setSortBy('status');
+        setSortOrder('asc');
         break;
-      case "city_hall":
-        matchesTab = donation.processing_stage === "city_hall";
+      case 'status_desc':
+        setSortBy('status');
+        setSortOrder('desc');
         break;
-      case "completed":
-        matchesTab = donation.processing_stage === "complete";
-        break;
+      case 'date_desc':
       default:
-        matchesTab = true;
+        setSortBy('date');
+        setSortOrder('desc');
+        break;
     }
-    
-    return matchesSearch && matchesTab;
-  }).sort((a, b) => new Date(b.request_date || b.created_at) - new Date(a.request_date || a.created_at));
+  };
+
+  const handleStatusFilterChange = (value) => {
+    setStatusFilter(value);
+  };
+
+  // Filter donations based on active tab and search
+  const filteredDonations = donations
+    .filter(donation => {
+      const matchesSearch = searchTerm === "" || 
+        donation.donor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        donation.donor_email.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filter by active tab
+      let matchesTab = false;
+      switch (activeTab) {
+        case "all":
+          matchesTab = true;
+          break;
+        case "request_meeting":
+          matchesTab = donation.processing_stage === "request_meeting";
+          break;
+        case "scheduled_meeting":
+          matchesTab = donation.processing_stage === "schedule_meeting";
+          break;
+        case "finished_meeting":
+          matchesTab = donation.processing_stage === "finished_meeting";
+          break;
+        case "city_hall":
+          matchesTab = donation.processing_stage === "city_hall";
+          break;
+        case "completed":
+          matchesTab = donation.processing_stage === "complete";
+          break;
+        default:
+          matchesTab = true;
+      }
+
+      const donationStatus = (donation.status || 'pending').toLowerCase();
+      const matchesStatus = statusFilter === 'all' || donationStatus === statusFilter;
+      
+      return matchesSearch && matchesTab && matchesStatus;
+    })
+    .sort((a, b) => {
+      const getDateValue = (donation) => {
+        const dateValue = donation.request_date || donation.created_at || donation.updated_at;
+        return dateValue ? new Date(dateValue).getTime() : 0;
+      };
+
+      let comparison = 0;
+      if (sortBy === 'name') {
+        comparison = (a.donor_name || '').localeCompare(b.donor_name || '', undefined, { sensitivity: 'base' });
+      } else if (sortBy === 'status') {
+        comparison = (a.status || '').localeCompare(b.status || '', undefined, { sensitivity: 'base' });
+      } else {
+        comparison = getDateValue(a) - getDateValue(b);
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
 
   const handleApprove = async (donationId) => {
     setApproving(donationId);
@@ -1524,6 +1580,41 @@ const Donation = () => {
             <i className="fa-solid fa-sync-alt mr-2"></i>
             Refresh
           </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Sort Donations</label>
+            <select
+              value={`${sortBy}_${sortOrder}`}
+              onChange={(e) => handleSortChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] text-sm"
+            >
+              <option value="date_desc">Newest First</option>
+              <option value="date_asc">Oldest First</option>
+              <option value="name_asc">Name A - Z</option>
+              <option value="name_desc">Name Z - A</option>
+              <option value="status_asc">Status A - Z</option>
+              <option value="status_desc">Status Z - A</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Status Filter</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E5B80B] focus:border-[#E5B80B] text-sm"
+            >
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Process Stage</label>
+            <div className="px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600">
+              {activeTab === 'all' ? 'Showing all stages' : activeTab.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </div>
+          </div>
         </div>
       </div>
 

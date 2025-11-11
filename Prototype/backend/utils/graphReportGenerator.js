@@ -113,42 +113,51 @@ class GraphReportGenerator {
 
   // Process gender data
   processGenderData(visitorData) {
-    const genderStats = { 'male': 0, 'female': 0, 'other': 0 };
-    
+    const genderStats = { male: 0, female: 0, lgbt: 0 };
+
     if (visitorData.visitorDetails && Array.isArray(visitorData.visitorDetails)) {
       visitorData.visitorDetails.forEach(visitor => {
-        const gender = (visitor.gender || 'other').toLowerCase();
-        if (genderStats.hasOwnProperty(gender)) {
-          genderStats[gender]++;
+        const rawGender = (visitor.gender || '').toString().trim().toLowerCase();
+
+        let normalizedGender;
+        if (['male', 'm'].includes(rawGender)) {
+          normalizedGender = 'male';
+        } else if (['female', 'f'].includes(rawGender)) {
+          normalizedGender = 'female';
+        } else if (['lgbt', 'lgbtq', 'lgbtq+', 'non-binary', 'nonbinary', 'nb', 'queer', 'transgender', 'trans'].includes(rawGender)) {
+          normalizedGender = 'lgbt';
         } else {
-          genderStats['other']++;
+          // Fallback: group unspecified/other responses under LGBT category to keep three segments
+          normalizedGender = 'lgbt';
         }
+
+        genderStats[normalizedGender]++;
       });
     }
-    
+
     return Object.entries(genderStats).map(([gender, count]) => ({
-      gender,
+      gender: gender === 'lgbt' ? 'LGBT' : gender.charAt(0).toUpperCase() + gender.slice(1),
       count
     }));
   }
 
   // Process visitor type data
   processVisitorTypeData(visitorData) {
-    const typeStats = { 'Local': 0, 'Foreign': 0, 'Student': 0, 'Other': 0 };
-    
+    const typeStats = { Local: 0, Foreign: 0 };
+
     if (visitorData.visitorDetails && Array.isArray(visitorData.visitorDetails)) {
       visitorData.visitorDetails.forEach(visitor => {
-        const type = visitor.visitor_type || 'Other';
-        // Handle both capitalized and lowercase versions
-        const normalizedType = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
-        if (typeStats.hasOwnProperty(normalizedType)) {
-          typeStats[normalizedType]++;
+        const rawType = (visitor.visitor_type || '').toString().trim().toLowerCase();
+
+        if (['foreign', 'foreigner', 'international', 'non-resident', 'nonresident', 'non resident'].includes(rawType)) {
+          typeStats.Foreign++;
         } else {
-          typeStats['Other']++;
+          // Treat all remaining categories (including Student/Other) as Local for the two-way split
+          typeStats.Local++;
         }
       });
     }
-    
+
     return Object.entries(typeStats).map(([type, count]) => ({
       type,
       count
@@ -265,7 +274,7 @@ class GraphReportGenerator {
         labels: data.map(d => d.type),
       datasets: [{
           data: data.map(d => d.count),
-          backgroundColor: ['#E5B80B', '#AB8841', '#8B6B21', '#6B4E16'],
+          backgroundColor: ['#E5B80B', '#AB8841'],
           borderColor: '#fff',
           borderWidth: 2
         }]

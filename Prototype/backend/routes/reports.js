@@ -1890,6 +1890,7 @@ async function generateEventParticipants(eventId) {
       er.checkin_time
     FROM event_registrations er
     WHERE er.event_id = ?
+      AND er.approval_status = 'approved'
     ORDER BY er.registration_date DESC
   `, [eventId]);
 

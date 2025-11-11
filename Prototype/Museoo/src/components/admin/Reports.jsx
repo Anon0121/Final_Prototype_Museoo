@@ -688,35 +688,36 @@ const Reports = ({ userPermissions }) => {
 
       {/* Report Modal */}
       {showReportModal && generatedReport && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full h-[95vh] flex flex-col animate-slideUp">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-0.5 xs:p-1 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-full sm:max-w-5xl lg:max-w-7xl h-screen sm:h-[95vh] flex flex-col animate-slideUp overflow-y-auto sm:overflow-visible">
             {/* Clean Modal Header */}
-            <div className="bg-gradient-to-r from-[#351E10] via-[#2A1A0D] to-[#1A0F08] text-white p-4 shadow-lg">
-              <div className="flex items-center justify-between">
-                {/* Left Side - Title */}
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#E5B80B] to-[#D4AF37] rounded-2xl flex items-center justify-center shadow-xl">
-                    <i className="fa-solid fa-chart-line text-white text-2xl"></i>
-                    </div>
+            <div className="bg-gradient-to-r from-[#351E10] via-[#2A1A0D] to-[#1A0F08] text-white p-3 sm:p-4 shadow-lg sticky top-0 sm:static z-20 border-b border-white/10 sm:border-b-0">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-[#E5B80B] to-[#D4AF37] rounded-2xl flex items-center justify-center shadow-xl shrink-0">
+                    <i className="fa-solid fa-chart-line text-white text-lg sm:text-2xl"></i>
+                  </div>
                   <div>
-                    <h2 className="text-3xl font-bold font-playfair mb-1">{generatedReport.title || 'AI Generated Report'}</h2>
-                    <div className="flex items-center gap-4 text-[#E5B80B]">
-                      <span className="flex items-center gap-2 text-sm font-semibold">
-                        <i className="fa-solid fa-tag text-xs"></i>
+                    <h2 className="text-lg sm:text-2xl lg:text-3xl font-bold text-white font-playfair">
+                      {generatedReport.title || 'AI Generated Report'}
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-2 mt-2 text-[#F9E7B5] text-xs sm:text-sm font-semibold">
+                      <span className="px-2 py-1 rounded-full bg-white/15 backdrop-blur-sm flex items-center gap-1.5">
+                        <i className="fa-solid fa-tag text-[10px] sm:text-xs"></i>
                         {generatedReport.report_type || 'AI Analysis'}
                       </span>
-                      <span className="flex items-center gap-2 text-sm font-semibold">
-                        <i className="fa-solid fa-calendar text-xs"></i>
+                      <span className="px-2 py-1 rounded-full bg-white/15 backdrop-blur-sm flex items-center gap-1.5">
+                        <i className="fa-solid fa-calendar text-[10px] sm:text-xs"></i>
                         {new Date(generatedReport.created_at || Date.now()).toLocaleDateString()}
                       </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
+
                 {/* Right Side - Close Button */}
                 <button
                   onClick={() => setShowReportModal(false)}
-                  className="text-white/70 hover:text-white transition-all duration-300 p-3 rounded-2xl hover:bg-white/10 backdrop-blur-sm hover:scale-110"
+                  className="self-end sm:self-auto text-white/70 hover:text-white transition-all duration-300 p-2 sm:p-3 rounded-2xl hover:bg-white/10 backdrop-blur-sm hover:scale-110"
                   title="Close Modal"
                 >
                   <i className="fa-solid fa-times text-2xl"></i>
@@ -725,61 +726,59 @@ const Reports = ({ userPermissions }) => {
             </div>
 
             {/* Modern Split Layout */}
-            <div className="flex-1 flex overflow-hidden bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+            <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
               {/* Left Side - Report Details (Smaller) */}
-              <div className="w-1/3 border-r border-gray-200/60 overflow-y-auto bg-white/50 backdrop-blur-sm">
-                <div className="p-6 h-full">
+              <div className="w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-200/60 bg-white/70 lg:bg-white/50 backdrop-blur-sm">
+                <div className="p-3 sm:p-6 h-full space-y-3 sm:space-y-4">
                   {/* Report Information Card - Compact Design */}
-                  <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 bg-gradient-to-br from-[#E5B80B] via-[#F4D03F] to-[#D4AF37] rounded-xl flex items-center justify-center shadow-lg">
-                        <i className="fa-solid fa-chart-line text-white text-xl"></i>
+                  <div className="bg-white/90 backdrop-blur-md rounded-2xl p-4 sm:p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-[#E5B80B] via-[#F4D03F] to-[#D4AF37] rounded-xl flex items-center justify-center shadow-lg">
+                        <i className="fa-solid fa-chart-line text-white text-base sm:text-xl"></i>
                     </div>
                       <div>
-                        <h2 className="text-xl font-bold text-[#351E10] font-playfair mb-1">Report Details</h2>
-                        <p className="text-sm text-gray-600">Generated report information</p>
+                        <h2 className="text-base sm:text-xl font-bold text-[#351E10] font-playfair mb-1">Report Details</h2>
+                        <p className="text-xs sm:text-sm text-gray-600 leading-snug">Generated report information</p>
                       </div>
                   </div>
                   
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       <div className="group hover:scale-[1.02] transition-all duration-200">
-                        <div className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200/50 hover:border-blue-300 hover:shadow-md transition-all duration-200">
-                          <span className="font-semibold text-gray-700 flex items-center gap-3 text-sm">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                              <i className="fa-solid fa-file-alt text-white text-xs"></i>
+                        <div className="flex flex-wrap justify-between items-center gap-3 py-3 px-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200/50 hover:border-blue-300 hover:shadow-md transition-all duration-200">
+                          <span className="font-semibold text-gray-700 flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                              <i className="fa-solid fa-file-alt text-white text-[10px] sm:text-xs"></i>
                             </div>
                           Report Type:
                         </span>
-                          <span className="text-[#351E10] font-bold bg-gradient-to-r from-[#E5B80B]/20 to-[#F4D03F]/20 px-3 py-1.5 rounded-lg text-sm border border-[#E5B80B]/30">
+                          <span className="text-[#351E10] font-bold bg-gradient-to-r from-[#E5B80B]/20 to-[#F4D03F]/20 px-3 py-1.5 rounded-lg text-xs sm:text-sm border border-[#E5B80B]/30">
                           {generatedReport.report_type || 'AI Analysis'}
                         </span>
                       </div>
                       </div>
-                      
                       <div className="group hover:scale-[1.02] transition-all duration-200">
-                        <div className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200/50 hover:border-green-300 hover:shadow-md transition-all duration-200">
-                          <span className="font-semibold text-gray-700 flex items-center gap-3 text-sm">
-                            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center">
-                              <i className="fa-solid fa-calendar-check text-white text-xs"></i>
+                        <div className="flex flex-wrap justify-between items-center gap-3 py-3 px-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200/50 hover:border-green-300 hover:shadow-md transition-all duration-200">
+                          <span className="font-semibold text-gray-700 flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shrink-0">
+                              <i className="fa-solid fa-calendar-check text-white text-[10px] sm:text-xs"></i>
                             </div>
                             Generated Date:
                         </span>
-                          <span className="text-[#351E10] font-bold text-sm">
+                          <span className="text-[#351E10] font-bold text-xs sm:text-sm">
                             {new Date(generatedReport.created_at || Date.now()).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
-                    
                       {generatedReport.start_date && (
                         <div className="group hover:scale-[1.02] transition-all duration-200">
-                          <div className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-200/50 hover:border-purple-300 hover:shadow-md transition-all duration-200">
-                            <span className="font-semibold text-gray-700 flex items-center gap-3 text-sm">
-                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                <i className="fa-solid fa-calendar-range text-white text-xs"></i>
+                          <div className="flex flex-wrap justify-between items-center gap-3 py-3 px-4 bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-200/50 hover:border-purple-300 hover:shadow-md transition-all duration-200">
+                            <span className="font-semibold text-gray-700 flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shrink-0">
+                                <i className="fa-solid fa-calendar-range text-white text-[10px] sm:text-xs"></i>
                               </div>
                               Report Period:
                           </span>
-                            <span className="text-[#351E10] font-bold text-sm">
+                            <span className="text-[#351E10] font-bold text-xs sm:text-sm">
                             {generatedReport.end_date && generatedReport.end_date !== generatedReport.start_date
                               ? `${new Date(generatedReport.start_date).toLocaleDateString()} - ${new Date(generatedReport.end_date).toLocaleDateString()}`
                               : new Date(generatedReport.start_date).toLocaleDateString()}
@@ -794,61 +793,61 @@ const Reports = ({ userPermissions }) => {
                   </div>
                   
               {/* Right Side - File Preview (Larger) */}
-              <div className="w-2/3 overflow-hidden bg-white/30 backdrop-blur-sm">
+              <div className="w-full lg:w-2/3 bg-white/90 lg:bg-white/30 backdrop-blur-sm">
                 <div className="h-full flex flex-col">
                   {/* Preview Header - Enhanced Design */}
-                  <div className="flex items-center justify-between p-3 bg-gradient-to-r from-[#351E10] via-[#2A1A0D] to-[#1A0F08] text-white shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 bg-gradient-to-r from-[#351E10] via-[#2A1A0D] to-[#1A0F08] text-white shadow-lg sticky top-0 sm:static z-10">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-white/20 to-white/10 rounded-lg flex items-center justify-center shadow-lg border border-white/20">
-                        <i className="fa-solid fa-file-pdf text-white text-lg"></i>
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-white/20 to-white/10 rounded-lg flex items-center justify-center shadow-lg border border-white/20">
+                        <i className="fa-solid fa-file-pdf text-white text-base sm:text-lg"></i>
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold font-playfair mb-1">Document Preview</h3>
-                        <p className="text-xs text-white/90 font-medium flex items-center gap-2">
+                        <h3 className="text-base sm:text-lg font-bold font-playfair mb-1">Document Preview</h3>
+                        <p className="text-[11px] sm:text-xs text-white/90 font-medium flex items-center gap-2">
                           <i className="fa-solid fa-eye text-xs"></i>
                           PDF Report Viewer
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => previewReport(generatedReport.id, 'pdf')}
-                        className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 backdrop-blur-sm hover:scale-105 border border-white/20"
-                        title="Refresh Preview"
-                      >
-                        <i className="fa-solid fa-refresh text-xs"></i>
-                        Refresh
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (previewData) {
-                            console.log('🔗 Opening blob URL in new tab:', previewData);
-                            window.open(previewData, '_blank');
-                          }
-                        }}
-                        className="bg-blue-500/90 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 hover:scale-105 border border-blue-400/30"
-                        title="Test Blob URL"
-                      >
-                        <i className="fa-solid fa-external-link text-xs"></i>
-                        Test
-                      </button>
-                      <button
-                        onClick={() => downloadReport(generatedReport.id, 'pdf')}
-                        className="bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#F4D03F] text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 hover:scale-105 shadow-lg border border-yellow-400/30"
-                        title="Download PDF"
-                      >
-                        <i className="fa-solid fa-download text-xs"></i>
-                        Download
-                      </button>
-                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3 sm:px-4 pb-3 sm:pb-4 bg-gradient-to-r from-[#351E10] via-[#2A1A0D] to-[#1A0F08] text-white">
+                    <button
+                      onClick={() => previewReport(generatedReport.id, 'pdf')}
+                      className="bg-white/20 hover:bg-white/30 text-white px-2.5 sm:px-3 py-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 backdrop-blur-sm hover:scale-105 border border-white/20"
+                      title="Refresh Preview"
+                    >
+                      <i className="fa-solid fa-refresh text-[10px] sm:text-xs"></i>
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (previewData) {
+                          console.log('🔗 Opening blob URL in new tab:', previewData);
+                          window.open(previewData, '_blank');
+                        }
+                      }}
+                      className="bg-blue-500/90 hover:bg-blue-500 text-white px-2.5 sm:px-3 py-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 hover:scale-105 border border-blue-400/30"
+                      title="Test Blob URL"
+                    >
+                      <i className="fa-solid fa-external-link text-[10px] sm:text-xs"></i>
+                      Test
+                    </button>
+                    <button
+                      onClick={() => downloadReport(generatedReport.id, 'pdf')}
+                      className="bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#F4D03F] text-white px-2.5 sm:px-3 py-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 hover:scale-105 shadow-lg border border-yellow-400/30"
+                      title="Download PDF"
+                    >
+                      <i className="fa-solid fa-download text-[10px] sm:text-xs"></i>
+                      Download
+                    </button>
                   </div>
 
                   {/* Preview Content - Enhanced Design */}
-                  <div className="flex-1 px-3 py-4 pt-6 bg-gradient-to-br from-gray-50 via-white to-blue-50">
+                  <div className="flex-1 overflow-y-auto px-2 sm:px-3 py-3 sm:py-4 pt-4 sm:pt-6 bg-gradient-to-br from-gray-50 via-white to-blue-50">
                     {/* Debug info */}
                     {console.log('🔍 Preview Debug:', { previewData: !!previewData, previewFormat, previewLoading })}
                     {previewData ? (
-                      <div className="h-full border-2 border-gray-300/50 rounded-2xl overflow-hidden shadow-2xl bg-white hover:shadow-3xl transition-all duration-300">
+                      <div className="h-full min-h-[360px] sm:min-h-0 border-2 border-gray-300/50 rounded-2xl overflow-hidden shadow-2xl bg-white hover:shadow-3xl transition-all duration-300">
                         <iframe
                           src={`${previewData}#toolbar=1&navpanes=1&scrollbar=1&view=FitH`}
                           className="w-full h-full border-0"
@@ -864,7 +863,7 @@ const Reports = ({ userPermissions }) => {
                     />
                   </div>
                     ) : previewLoading ? (
-                      <div className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-blue-50 rounded-2xl border-2 border-dashed border-blue-400/40 shadow-inner">
+                      <div className="h-full min-h-[280px] flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-blue-50 rounded-2xl border-2 border-dashed border-blue-400/40 shadow-inner">
                         <div className="text-center p-4">
                           <div className="w-28 h-28 bg-gradient-to-br from-blue-500/30 to-blue-600/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl border-4 border-white animate-pulse">
                             <i className="fa-solid fa-spinner fa-spin text-blue-600 text-5xl"></i>
@@ -876,26 +875,26 @@ const Reports = ({ userPermissions }) => {
               </div>
             </div>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 rounded-2xl border-2 border-dashed border-[#E5B80B]/40 shadow-inner hover:shadow-lg transition-all duration-300">
+                      <div className="h-full min-h-[280px] flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 rounded-2xl border-2 border-dashed border-[#E5B80B]/40 shadow-inner hover:shadow-lg transition-all duration-300">
                         <div className="text-center p-4">
                           <div className="w-28 h-28 bg-gradient-to-br from-[#E5B80B]/30 to-[#D4AF37]/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl border-4 border-white">
                             <i className="fa-solid fa-file-pdf text-[#E5B80B] text-5xl"></i>
                           </div>
-                          <h3 className="text-3xl font-bold text-gray-800 mb-4 font-playfair">PDF Preview Ready</h3>
-                          <p className="text-gray-600 mb-8 text-base leading-relaxed max-w-lg">
+                          <h3 className="text-xl sm:text-3xl font-bold text-gray-800 mb-4 font-playfair">PDF Preview Ready</h3>
+                          <p className="text-gray-600 mb-6 sm:mb-8 text-sm sm:text-base leading-relaxed max-w-lg">
                             Click the "Load PDF Preview" button below to view your report, or use the "Refresh" button above.
                           </p>
-                          <div className="flex gap-6 justify-center">
+                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 justify-center">
                             <button
                               onClick={() => previewReport(generatedReport.id, 'pdf')}
-                              className="bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#F4D03F] text-white px-8 py-4 rounded-xl font-bold transition-all duration-300 flex items-center gap-3 hover:scale-110 shadow-xl hover:shadow-2xl border-2 border-white/20"
+                              className="bg-gradient-to-r from-[#E5B80B] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#F4D03F] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-bold text-sm sm:text-base transition-all duration-300 flex items-center gap-3 justify-center hover:scale-105 sm:hover:scale-110 shadow-xl hover:shadow-2xl border-2 border-white/20"
                             >
                               <i className="fa-solid fa-eye text-lg"></i>
                               Load PDF Preview
                             </button>
                             <button
                               onClick={() => downloadReport(generatedReport.id, 'pdf')}
-                              className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-8 py-4 rounded-xl font-bold transition-all duration-300 flex items-center gap-3 hover:scale-110 shadow-xl hover:shadow-2xl border-2 border-white/20"
+                              className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-bold text-sm sm:text-base transition-all duration-300 flex items-center gap-3 justify-center hover:scale-105 sm:hover:scale-110 shadow-xl hover:shadow-2xl border-2 border-white/20"
                             >
                               <i className="fa-solid fa-download text-lg"></i>
                               Download PDF
